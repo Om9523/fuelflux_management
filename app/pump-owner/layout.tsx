@@ -7,6 +7,7 @@ import { LayoutDashboard, Users, CreditCard, Wallet, Receipt, BarChart2, Cpu, Ca
 const navItems = [
   { label: "Dashboard", href: "/pump-owner/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
   { label: "Accounting", href: "/pump-owner/accounting", icon: <Receipt className="w-4 h-4" /> },
+  { label: "CRM", href: "/pump-owner/crm", icon: <Receipt className="w-4 h-4" /> },
   { label: "Sales Register", href: "/pump-owner/sales", icon: <BarChart2 className="w-4 h-4" /> },
   { label: "Inventory", href: "/pump-owner/inventory", icon: <Package className="w-4 h-4" /> },
   { label: "Employees", href: "/pump-owner/employees", icon: <Users className="w-4 h-4" /> },
