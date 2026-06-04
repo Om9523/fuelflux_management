@@ -53,10 +53,10 @@ export const Sidebar: React.FC = () => {
   const sidebarWidth = isCollapsed ? 'w-20' : 'w-64';
 
   const RenderContent = () => (
-    <div className="h-full flex flex-col justify-between bg-slate-900 border-r border-slate-800 text-slate-300">
+    <div className="h-full flex flex-col justify-between bg-white border-r border-slate-200 text-slate-650">
       {/* Upper Logo & Toggle Panel */}
       <div className="flex flex-col">
-        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800 shrink-0">
+        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2.5 overflow-hidden">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-transparent shrink-0">
               <img src="/logo.png" alt="FuelFlux Logo" className="h-8.5 w-8.5 object-contain" />
@@ -65,7 +65,7 @@ export const Sidebar: React.FC = () => {
               <motion.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-base font-bold tracking-tight text-white font-plus-jakarta shrink-0"
+                className="text-base font-bold tracking-tight text-slate-800 font-plus-jakarta shrink-0"
               >
                 Fuel<span className="text-primary">Flux</span>
               </motion.span>
@@ -74,7 +74,7 @@ export const Sidebar: React.FC = () => {
           {/* Collapse toggle (Desktop only) */}
           <button
             onClick={toggleSidebar}
-            className="hidden lg:flex items-center justify-center p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer outline-none transition-colors border border-slate-700/50"
+            className="hidden lg:flex items-center justify-center p-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer outline-none transition-colors border border-slate-200"
           >
             {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
@@ -94,7 +94,7 @@ export const Sidebar: React.FC = () => {
                   ${
                     isActive
                       ? 'bg-primary text-white shadow-md shadow-primary/10'
-                      : 'hover:bg-slate-800/60 text-slate-400 hover:text-white'
+                      : 'hover:bg-slate-50 text-slate-500 hover:text-slate-800'
                   }
                 `}
               >
@@ -115,10 +115,10 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Logout Footer Panel */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/30">
+      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
         <button
           onClick={logout}
-          className="flex items-center gap-3.5 px-3 py-2.5 w-full rounded-xl text-sm font-semibold tracking-wide text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 transition-all duration-300 cursor-pointer outline-none"
+          className="flex items-center gap-3.5 px-3 py-2.5 w-full rounded-xl text-sm font-semibold tracking-wide text-rose-500 hover:text-rose-600 hover:bg-rose-50 transition-all duration-300 cursor-pointer outline-none"
         >
           <LogOut className="h-5 w-5 shrink-0" />
           {!isCollapsed && <span className="text-xs sm:text-sm font-medium">Log Out Session</span>}
@@ -156,7 +156,7 @@ export const Sidebar: React.FC = () => {
             >
               <button
                 onClick={() => setMobileOpen(false)}
-                className="absolute top-4 right-[-45px] p-2 bg-slate-900 border border-slate-800 text-white rounded-xl shadow-lg cursor-pointer"
+                className="absolute top-4 right-[-45px] p-2 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-lg cursor-pointer"
               >
                 <X className="h-4.5 w-4.5" />
               </button>

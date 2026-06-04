@@ -93,10 +93,13 @@ export default function SelectRolePage() {
         router.push('/logistic/dashboard');
       } else if (role === 'investor') {
         router.push('/investor');
+      } else if (role === 'admin') {
+        router.push('/admin');
       } else {
         toast.info(`Redirecting to mock ${roleCardsMeta[role].title} panel...`);
-        router.push('/dashboard'); // All other route contexts fallback elegantly to dashboard
+        router.push('/dashboard');
       }
+
     } catch (err: any) {
       toast.error('Failed to select role');
     }

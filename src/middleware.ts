@@ -6,10 +6,6 @@ const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password'];
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Read cookies for session details
-  const token = request.cookies.get('fuelflux_accessToken')?.value;
-  const activeRole = request.cookies.get('fuelflux_activeRole')?.value;
-
   // Let API requests and Next.js assets bypass middleware protection
   if (
     pathname.startsWith('/_next') ||
@@ -19,11 +15,40 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // ==========================================
+  // 1. ADMIN ROUTES ROUTING & PROTECTION
+  // ==========================================
+  if (pathname.startsWith('/admin')) {
+    const adminToken = request.cookies.get('fuelflux_admin_accessToken')?.value;
+
+    if (pathname === '/admin/login') {
+      // If already authenticated, bypass login
+      if (adminToken) {
+        const adminDashboardUrl = new URL('/admin', request.url);
+        return NextResponse.redirect(adminDashboardUrl);
+      }
+      return NextResponse.next();
+    }
+
+    // Require admin token for all other admin routes
+    if (!adminToken) {
+      const adminLoginUrl = new URL('/admin/login', request.url);
+      return NextResponse.redirect(adminLoginUrl);
+    }
+
+    return NextResponse.next();
+  }
+
+  // ==========================================
+  // 2. STANDARD USER ROUTES ROUTING & PROTECTION
+  // ==========================================
+  const token = request.cookies.get('fuelflux_accessToken')?.value;
+  const activeRole = request.cookies.get('fuelflux_activeRole')?.value;
+
   const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
 
-  // 1. User is not logged in
+  // User is not logged in
   if (!token) {
-    // If trying to access protected route (e.g., /select-role or /dashboard), redirect to /login
     if (!isPublicRoute) {
       const loginUrl = new URL('/login', request.url);
       return NextResponse.redirect(loginUrl);
@@ -31,9 +56,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. User is logged in
+  // User is logged in
   if (token) {
-    // A. If accessing login/register/forgot-password, redirect to dashboard or select-role
     if (isPublicRoute && pathname !== '/') {
       if (!activeRole) {
         const selectRoleUrl = new URL('/select-role', request.url);
@@ -44,14 +68,10 @@ export function middleware(request: NextRequest) {
       }
     }
 
-    // B. If logged in but has no active role selected, enforce redirect to /select-role
     if (!activeRole && pathname !== '/select-role') {
       const selectRoleUrl = new URL('/select-role', request.url);
       return NextResponse.redirect(selectRoleUrl);
     }
-
-    // C. If active role exists, prevent going back to /select-role unless manually routing (or let it go if they have multiple roles)
-    // To support multi-role, we allow accessing /select-role even with activeRole so they can switch roles!
   }
 
   return NextResponse.next();

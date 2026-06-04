@@ -29,10 +29,10 @@ export default function DashboardLayout({
 
   if (isLoading || !isAuthenticated) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-slate-900">
+      <div className="min-h-screen w-full flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
           <div className="animate-spin rounded-full h-9 w-9 border-t-2 border-primary" />
-          <span className="text-xs font-bold text-slate-400 font-mono tracking-widest uppercase">
+          <span className="text-xs font-bold text-slate-450 font-mono tracking-widest uppercase">
             Securing Session Context...
           </span>
         </div>
