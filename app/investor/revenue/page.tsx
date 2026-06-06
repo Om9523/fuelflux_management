@@ -1,158 +1,328 @@
-"use client";
-import { DollarSign, TrendingUp, Download } from "lucide-react";
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+'use client';
 
-const monthlyRevenue = [
-  { month: "Jul", revenue: 1850000, expenses: 620000 },
-  { month: "Aug", revenue: 2100000, expenses: 710000 },
-  { month: "Sep", revenue: 1950000, expenses: 680000 },
-  { month: "Oct", revenue: 2400000, expenses: 820000 },
-  { month: "Nov", revenue: 2750000, expenses: 940000 },
-  { month: "Dec", revenue: 3100000, expenses: 1050000 },
-  { month: "Jan", revenue: 2850000, expenses: 980000 },
-];
+import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Coins,
+  Filter,
+  Calendar,
+  Building2,
+  Fuel,
+  Map,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  Percent,
+  Download,
+  Info
+} from 'lucide-react';
+import { useInvestorStore } from '@/stores/investor.store';
+import { toast } from '@/components/feedback/Toast';
 
-const revenueStreams = [
-  { stream: "Subscription Fees", amount: 12400000, pct: 44, color: "#6366f1" },
-  { stream: "Transaction Commissions", amount: 9200000, pct: 33, color: "#f97316" },
-  { stream: "Wallet Funding Fees", amount: 4100000, pct: 15, color: "#22c55e" },
-  { stream: "AI Feature Premium", amount: 2300000, pct: 8, color: "#a855f7" },
-];
+export default function RevenueAnalytics() {
+  const { activePortfolioId, revenues, portfolios } = useInvestorStore();
 
-const topStations = [
-  { name: "City Petrol Hub", plan: "Diamond", revenue: "₹4.2L", growth: "+18%", pct: 100 },
-  { name: "Sharma Fuel Station", plan: "Gold", revenue: "₹3.8L", growth: "+12%", pct: 90 },
-  { name: "Metro Fuels", plan: "Diamond", revenue: "₹2.9L", growth: "+8%", pct: 69 },
-  { name: "Green Valley Fuel", plan: "Gold", revenue: "₹2.1L", growth: "+22%", pct: 50 },
-  { name: "Sunrise Fuels", plan: "Gold", revenue: "₹1.8L", growth: "+6%", pct: 43 },
-];
+  const [filterRegion, setFilterRegion] = useState('all');
+  const [filterFuel, setFilterFuel] = useState('all');
+  const [filterDate, setFilterDate] = useState('30d');
 
-export default function RevenueInsightsPage() {
-  const totalRevenue = monthlyRevenue.reduce((a, b) => a + b.revenue, 0);
-  const totalExpenses = monthlyRevenue.reduce((a, b) => a + b.expenses, 0);
-  const netProfit = totalRevenue - totalExpenses;
+  const portfolioRevenues = revenues[activePortfolioId] || [];
+  const activePortfolio = portfolios.find(p => p.id === activePortfolioId) || portfolios[0];
+
+  const handleExportCSV = () => {
+    toast.success('Tax ledgers and GST statements exported as CSV.');
+  };
+
+  // Aggregates
+  const totalRevenue = portfolioRevenues.reduce((acc, curr) => acc + curr.revenue, 0);
+  const totalOpCost = portfolioRevenues.reduce((acc, curr) => acc + curr.operatingCost, 0);
+  const totalProfit = portfolioRevenues.reduce((acc, curr) => acc + curr.profit, 0);
+  const marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+  // Mock GST calculations
+  const totalGst = totalRevenue * 0.18; // 18% GST average
+  const cgst = totalGst / 2;
+  const sgst = totalGst / 2;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 text-slate-800">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/60 pb-5">
         <div>
-          <h1 className="text-2xl text-gray-900 flex items-center gap-2" style={{ fontWeight: 800 }}>
-            <DollarSign className="w-6 h-6 text-indigo-500" /> Revenue Insights
+          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">
+            Revenue Analytics
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">Platform-wide revenue streams and profitability analysis</p>
+          <p className="text-xs font-semibold text-slate-500 mt-1">
+            Financial ledgers, SGST/CGST tax reconciliations, and portfolio margins
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2 text-xs text-indigo-700 font-semibold">👁 View-Only</div>
-          <button className="btn-secondary flex items-center gap-2 py-2 px-3 text-xs">
-            <Download className="w-3.5 h-3.5" /> Export
-          </button>
+
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center justify-center gap-1.5 px-4.5 py-2.5 bg-slate-50 border border-slate-200 hover:border-orange-500/30 text-slate-700 hover:text-orange-600 rounded-xl text-xs font-bold transition-all cursor-pointer hover:bg-slate-100"
+        >
+          <Download className="h-4 w-4" /> Export Ledger
+        </button>
+      </div>
+
+      {/* Filter Toolbar */}
+      <div className="bg-white border border-slate-200/60 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Region Filter */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shrink-0">
+            <Map className="h-3.5 w-3.5 text-slate-400" />
+            <select
+              value={filterRegion}
+              onChange={(e) => setFilterRegion(e.target.value)}
+              className="bg-transparent text-xs font-bold text-slate-600 focus:outline-none cursor-pointer text-slate-800"
+            >
+              <option value="all" className="bg-white text-slate-800">All Regions</option>
+              <option value="south" className="bg-white text-slate-800">South India</option>
+              <option value="west" className="bg-white text-slate-800">West India</option>
+            </select>
+          </div>
+
+          {/* Fuel Filter */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shrink-0">
+            <Fuel className="h-3.5 w-3.5 text-slate-400" />
+            <select
+              value={filterFuel}
+              onChange={(e) => setFilterFuel(e.target.value)}
+              className="bg-transparent text-xs font-bold text-slate-600 focus:outline-none cursor-pointer text-slate-800"
+            >
+              <option value="all" className="bg-white text-slate-800">All Fuels</option>
+              <option value="diesel" className="bg-white text-slate-800">Diesel</option>
+              <option value="petrol" className="bg-white text-slate-800">Petrol</option>
+              <option value="cng" className="bg-white text-slate-800">CNG</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Date presets selection */}
+        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-1 rounded-xl">
+          {['30d', '90d', 'ytd', 'yearly'].map((period) => (
+            <button
+              key={period}
+              onClick={() => setFilterDate(period)}
+              className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${
+                filterDate === period
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {period}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="card p-5" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}>
-          <p className="text-indigo-200 text-xs font-semibold mb-1">Total Revenue (7M)</p>
-          <p className="text-3xl font-black text-white">₹{(totalRevenue / 10000000).toFixed(2)}Cr</p>
-          <p className="text-indigo-200 text-xs mt-1 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> +22.4% YoY</p>
+      {/* Stats Cards Row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+        <div className="bg-white border border-slate-200/60 rounded-2xl p-4.5 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Gross Sales Margin</p>
+          <h3 className="text-xl font-black text-slate-800 mt-1.5">₹{totalRevenue.toLocaleString()}</h3>
+          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-2">
+            ▲ +5.2% MoM
+          </span>
         </div>
-        <div className="card p-5">
-          <p className="text-gray-500 text-xs font-semibold mb-1">Total Operating Expenses</p>
-          <p className="text-3xl font-black text-gray-900">₹{(totalExpenses / 10000000).toFixed(2)}Cr</p>
-          <p className="text-red-500 text-xs mt-1">34.2% of revenue</p>
+
+        <div className="bg-white border border-slate-200/60 rounded-2xl p-4.5 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Net Operating Yield</p>
+          <h3 className="text-xl font-black text-slate-800 mt-1.5">₹{totalProfit.toLocaleString()}</h3>
+          <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-0.5 mt-2">
+            Margin: {marginPct.toFixed(1)}%
+          </span>
         </div>
-        <div className="card p-5" style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
-          <p className="text-green-200 text-xs font-semibold mb-1">Net Profit (7M)</p>
-          <p className="text-3xl font-black text-white">₹{(netProfit / 10000000).toFixed(2)}Cr</p>
-          <p className="text-green-200 text-xs mt-1 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> 65.8% margin</p>
+
+        <div className="bg-white border border-slate-200/60 rounded-2xl p-4.5 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Provisional CGST (9%)</p>
+          <h3 className="text-xl font-black text-orange-600 mt-1.5">₹{cgst.toLocaleString()}</h3>
+          <span className="text-[10px] text-slate-500 font-semibold mt-2 block">Accrued Central input tax</span>
+        </div>
+
+        <div className="bg-white border border-slate-200/60 rounded-2xl p-4.5 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Provisional SGST (9%)</p>
+          <h3 className="text-xl font-black text-orange-600 mt-1.5">₹{sgst.toLocaleString()}</h3>
+          <span className="text-[10px] text-slate-500 font-semibold mt-2 block">Accrued State input tax</span>
         </div>
       </div>
 
+      {/* Visual Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue vs Expenses */}
-        <div className="lg:col-span-2 card p-5">
-          <h2 className="text-sm font-bold text-gray-900 mb-4">Revenue vs Expenses — Monthly (₹)</h2>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthlyRevenue} barGap={3}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
-                tickFormatter={v => `₹${(v / 100000).toFixed(0)}L`} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)", fontSize: 12 }}
-                formatter={(v: number) => `₹${(v / 100000).toFixed(2)}L`} />
-              <Bar dataKey="revenue" name="Revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expenses" name="Expenses" fill="#f87171" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        {/* Custom Stacked Bar: Revenue vs Costs (2/3 width) */}
+        <div className="lg:col-span-2 bg-white border border-slate-200/60 rounded-3xl p-5 shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Revenue Breakdown</h3>
+              <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Ratio of operating margins vs tax overheads</p>
+            </div>
+            <div className="flex items-center gap-4 text-[10px] font-bold">
+              <span className="flex items-center gap-1.5 text-orange-500">
+                <span className="w-2.5 h-2.5 bg-orange-500 rounded-full" /> Profit
+              </span>
+              <span className="flex items-center gap-1.5 text-blue-500">
+                <span className="w-2.5 h-2.5 bg-blue-500 rounded-full" /> Costs
+              </span>
+              <span className="flex items-center gap-1.5 text-emerald-500">
+                <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" /> GST (18%)
+              </span>
+            </div>
+          </div>
+
+          <div className="h-60 mt-4">
+            <svg viewBox="0 0 600 200" className="w-full h-full overflow-visible">
+              <line x1="0" y1="20" x2="600" y2="20" stroke="#E2E8F0" strokeWidth="1" strokeDasharray="4 4" />
+              <line x1="0" y1="70" x2="600" y2="70" stroke="#E2E8F0" strokeWidth="1" strokeDasharray="4 4" />
+              <line x1="0" y1="120" x2="600" y2="120" stroke="#E2E8F0" strokeWidth="1" strokeDasharray="4 4" />
+              <line x1="0" y1="170" x2="600" y2="170" stroke="#CBD5E1" strokeWidth="1.5" />
+
+              {/* Six stacked bars mapping the monthly records */}
+              {portfolioRevenues.map((rev, index) => {
+                const x = 50 + index * 90;
+                // Normalize values to fit inside [0, 150] height
+                const maxVal = activePortfolioId === 'portfolio_1' ? 7000000 : 5000000;
+                
+                const costHeight = (rev.operatingCost / maxVal) * 150;
+                const profitHeight = (rev.profit / maxVal) * 150;
+                const gstHeight = (rev.gstPaid / maxVal) * 150;
+
+                const yCost = 170 - costHeight;
+                const yProfit = yCost - profitHeight;
+                const yGst = yProfit - gstHeight;
+
+                return (
+                  <g key={rev.month}>
+                    {/* Cost Block */}
+                    <rect x={x} y={yCost} width="28" height={costHeight} fill="#2563EB" rx="4" />
+                    {/* Profit Block */}
+                    <rect x={x} y={yProfit} width="28" height={profitHeight} fill="#f97316" />
+                    {/* GST Block */}
+                    <rect x={x} y={yGst} width="28" height={gstHeight} fill="#10b981" rx="4" />
+
+                    <text x={x + 14} y="190" fill="#94A3B8" fontSize="8" fontWeight="bold" textAnchor="middle">
+                      {rev.month.substring(0, 3)}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
         </div>
 
-        {/* Revenue Streams */}
-        <div className="card p-5">
-          <h2 className="text-sm font-bold text-gray-900 mb-4">Revenue Streams</h2>
-          <div className="space-y-4">
-            {revenueStreams.map(s => (
-              <div key={s.stream}>
-                <div className="flex justify-between mb-1.5 text-xs">
-                  <span className="text-gray-600">{s.stream}</span>
-                  <span className="font-bold text-gray-900">₹{(s.amount / 10000000).toFixed(2)}Cr ({s.pct}%)</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className="h-2 rounded-full" style={{ width: `${s.pct}%`, background: s.color }} />
-                </div>
+        {/* GST Allocations Pie */}
+        <div className="bg-white border border-slate-200/60 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Revenue Allocation</h3>
+            <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Allocation of MTD funds collected</p>
+          </div>
+
+          <div className="flex items-center justify-center my-6 relative">
+            <svg width="150" height="150" viewBox="0 0 36 36" className="transform -rotate-90">
+              <circle cx="18" cy="18" r="15.915" fill="none" stroke="#F1F5F9" strokeWidth="5" />
+              {/* Cost Segment (approx 78%) */}
+              <circle
+                cx="18"
+                cy="18"
+                r="15.915"
+                fill="none"
+                stroke="#2563EB"
+                strokeWidth="5"
+                strokeDasharray="78 22"
+                strokeDashoffset="0"
+              />
+              {/* Profit Segment (approx 17.5%) */}
+              <circle
+                cx="18"
+                cy="18"
+                r="15.915"
+                fill="none"
+                stroke="#f97316"
+                strokeWidth="5"
+                strokeDasharray="17.5 82.5"
+                strokeDashoffset="-78"
+              />
+              {/* GST Segment (approx 4.5%) */}
+              <circle
+                cx="18"
+                cy="18"
+                r="15.915"
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="5"
+                strokeDasharray="4.5 95.5"
+                strokeDashoffset="-95.5"
+              />
+            </svg>
+            <div className="absolute text-center flex flex-col justify-center items-center">
+              <Coins className="h-5 w-5 text-slate-400" />
+              <span className="text-[8px] font-black text-slate-400 mt-1 uppercase">Net Margin</span>
+              <span className="text-xs font-black text-slate-850">{marginPct.toFixed(1)}%</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-xs font-bold text-slate-650">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-[#2563EB] rounded-full" />
+                <span>Operating Cost</span>
               </div>
-            ))}
+              <span className="text-slate-850">₹{totalOpCost.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-[#f97316] rounded-full" />
+                <span>Net Profit</span>
+              </div>
+              <span className="text-slate-850">₹{totalProfit.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-[#10b981] rounded-full" />
+                <span>accrued GST (18%)</span>
+              </div>
+              <span className="text-slate-850">₹{totalGst.toLocaleString()}</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Net Profit Area Chart */}
-      <div className="card p-5">
-        <h2 className="text-sm font-bold text-gray-900 mb-4">Net Profit Trend (₹)</h2>
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={monthlyRevenue.map(m => ({ ...m, profit: m.revenue - m.expenses }))}>
-            <defs>
-              <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#059669" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#059669" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
-              tickFormatter={v => `₹${(v / 100000).toFixed(0)}L`} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)", fontSize: 12 }}
-              formatter={(v: number) => `₹${(v / 100000).toFixed(2)}L`} />
-            <Area type="monotone" dataKey="profit" name="Net Profit" stroke="#059669" strokeWidth={2.5} fill="url(#profitGrad)" dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Top Stations */}
-      <div className="card">
-        <div className="p-5 border-b border-gray-100">
-          <h2 className="text-sm font-bold text-gray-900">Top Revenue-Generating Stations</h2>
+      {/* Financial Ledger Audit table */}
+      <div className="bg-white border border-slate-200/60 rounded-3xl shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-100">
+          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">GST Ledger & Input Tax Accounts</h3>
+          <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Audit log of sales margins and tax reserves mapped by month</p>
         </div>
-        <div className="p-5 space-y-4">
-          {topStations.map((s, i) => (
-            <div key={s.name} className="flex items-center gap-4">
-              <div className="w-7 h-7 bg-indigo-50 rounded-full flex items-center justify-center text-xs font-black text-indigo-600">{i + 1}</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{s.name}</p>
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                    <span className="text-xs font-black text-gray-900">{s.revenue}</span>
-                    <span className="text-xs font-semibold text-green-600">{s.growth}</span>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-1.5">
-                  <div className="h-1.5 rounded-full bg-indigo-500 transition-all" style={{ width: `${s.pct}%` }} />
-                </div>
-              </div>
-              <span className={`badge text-xs flex-shrink-0 ${s.plan === "Diamond" ? "badge-blue" : "badge-orange"}`}>
-                {s.plan === "Diamond" ? "💎" : "🥇"} {s.plan}
-              </span>
-            </div>
-          ))}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200/60 bg-slate-50 text-[9px] font-black text-slate-450 uppercase tracking-wider">
+                <th className="p-4 pl-6">Financial Month</th>
+                <th className="p-4 text-right">Gross Revenues</th>
+                <th className="p-4 text-right">Operating Costs</th>
+                <th className="p-4 text-right">Net Profit Yield</th>
+                <th className="p-4 text-right">GST Collected (18%)</th>
+                <th className="p-4 text-right">Provisional CGST (9%)</th>
+                <th className="p-4 text-right pr-6">Provisional SGST (9%)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
+              {portfolioRevenues.map((rev) => {
+                const monthGst = rev.revenue * 0.18;
+                return (
+                  <tr key={rev.month} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4 pl-6 font-black text-slate-800">{rev.month}</td>
+                    <td className="p-4 text-right font-black text-slate-850">₹{rev.revenue.toLocaleString()}</td>
+                    <td className="p-4 text-right text-slate-550">₹{rev.operatingCost.toLocaleString()}</td>
+                    <td className="p-4 text-right text-emerald-600 font-bold">₹{rev.profit.toLocaleString()}</td>
+                    <td className="p-4 text-right text-orange-600 font-bold">₹{monthGst.toLocaleString()}</td>
+                    <td className="p-4 text-right text-slate-500">₹{(monthGst / 2).toLocaleString()}</td>
+                    <td className="p-4 text-right text-slate-500 pr-6">₹{(monthGst / 2).toLocaleString()}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

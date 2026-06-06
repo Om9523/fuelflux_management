@@ -10,6 +10,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        primary: "#f97316",
+        "primary-hover": "#ea580c",
+        "soft-bg": "#fff7ed",
+        "border-accent": "#fed7aa",
+        "text-primary": "#1e293b",
+        "text-secondary": "#64748b",
         brand: {
           50: "#fff7ed",
           100: "#ffedd5",

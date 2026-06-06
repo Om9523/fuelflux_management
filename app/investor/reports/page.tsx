@@ -1,134 +1,305 @@
-"use client";
-import { Download, FileText, Calendar, TrendingUp } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+'use client';
 
-const quarterlyData = [
-  { quarter: "Q1 FY23", revenue: 6200000, pumps: 62, roi: 12.4 },
-  { quarter: "Q2 FY23", revenue: 7400000, pumps: 68, roi: 15.8 },
-  { quarter: "Q3 FY23", revenue: 7100000, pumps: 71, roi: 14.2 },
-  { quarter: "Q4 FY23", revenue: 8900000, pumps: 75, roi: 18.6 },
-  { quarter: "Q1 FY24", revenue: 10200000, pumps: 80, roi: 21.3 },
-  { quarter: "Q2 FY24", revenue: 11800000, pumps: 89, roi: 24.7 },
-];
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  FileText,
+  Plus,
+  Search,
+  Filter,
+  Download,
+  Calendar,
+  Sparkles,
+  Loader2,
+  X,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
+import { useInvestorStore, ExecutiveReport } from '@/stores/investor.store';
+import { toast } from '@/components/feedback/Toast';
 
-const revenueByPlan = [
-  { name: "Diamond Plan", value: 42, color: "#6366f1" },
-  { name: "Gold Plan", value: 38, color: "#f97316" },
-  { name: "Free Plan", value: 20, color: "#e5e7eb" },
-];
+export default function ReportsPage() {
+  const { reports, triggerGenerateReport, isLoading } = useInvestorStore();
 
-const reports = [
-  { title: "Q2 FY2024 Investor Report", date: "Jan 15, 2024", type: "Quarterly", size: "2.4 MB", format: "PDF" },
-  { title: "Annual Revenue Analysis FY2023", date: "Apr 2, 2023", type: "Annual", size: "5.1 MB", format: "PDF" },
-  { title: "Platform Growth Metrics — Dec 2023", date: "Jan 3, 2024", type: "Monthly", size: "1.2 MB", format: "PDF" },
-  { title: "ROI Breakdown — Q1 FY24", date: "Oct 5, 2023", type: "Quarterly", size: "1.8 MB", format: "PDF" },
-  { title: "AI Analytics & Fraud Report — 2023", date: "Jan 10, 2024", type: "Special", size: "3.2 MB", format: "PDF" },
-];
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
 
-export default function InvestorReportsPage() {
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [reportName, setReportName] = useState('');
+  const [category, setCategory] = useState<ExecutiveReport['category']>('financial');
+  const [compilingMsg, setCompilingMsg] = useState('');
+
+  const filteredReports = reports.filter((r) => {
+    const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory === 'all' || r.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const handleGenerateReportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportName) {
+      toast.error('Please enter a valid report name.');
+      return;
+    }
+
+    setCompilingMsg('Connecting to central station nodes...');
+    try {
+      // Trigger Zustand async generation
+      const resultPromise = triggerGenerateReport(category, reportName);
+
+      // Cycle compile message for high-fidelity feel
+      setTimeout(() => setCompilingMsg('Reconciling SGST/CGST tax registers...'), 800);
+      setTimeout(() => setCompilingMsg('Compiling fleet voucher logs...'), 1600);
+
+      await resultPromise;
+
+      toast.success(`Report "${reportName}" compiled successfully.`);
+      setIsModalOpen(false);
+      
+      // Reset
+      setReportName('');
+      setCategory('financial');
+    } catch (err) {
+      toast.error('Failed to compile report.');
+    }
+  };
+
+  const handleDownload = (report: ExecutiveReport, format: 'PDF' | 'CSV' | 'Excel') => {
+    toast.success(`Download started: ${report.name}.${format.toLowerCase()}`);
+  };
+
+  const categoryLabels: Record<ExecutiveReport['category'], string> = {
+    financial: 'Financial Audit',
+    portfolio: 'Portfolio Summary',
+    revenue: 'Revenue Report',
+    growth: 'Growth Analysis',
+    fleet: 'Fleet Analytics',
+    risk: 'Risk Analysis'
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 text-slate-800">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/60 pb-5">
         <div>
-          <h1 className="text-2xl text-gray-900" style={{ fontWeight: 800 }}>Investor Reports</h1>
-          <p className="text-sm text-gray-500 mt-0.5">AI-generated quarterly & annual performance reports</p>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">
+            Reports Center
+          </h1>
+          <p className="text-xs font-semibold text-slate-500 mt-1">
+            Download financial audits, B2B credit ratings, and custom portfolio yield spreadsheets
+          </p>
         </div>
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2 text-xs text-indigo-700 font-semibold">
-          👁 View-Only Access
+
+        <button
+          onClick={() => {
+            setIsModalOpen(true);
+            setCompilingMsg('');
+          }}
+          className="flex items-center justify-center gap-1.5 px-5 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-orange-500/25 transition-all cursor-pointer shrink-0"
+        >
+          <Plus className="h-4 w-4" />
+          Compile Report
+        </button>
+      </div>
+
+      {/* Filter toolbar */}
+      <div className="bg-white border border-slate-200/60 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="relative w-full md:max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search report archive by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-semibold placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500/50 focus:ring-4 focus:ring-orange-500/5 transition-all text-slate-800"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1.5 w-full md:w-auto">
+          <Filter className="h-3.5 w-3.5 text-slate-400" />
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="bg-transparent text-xs font-bold text-slate-600 focus:outline-none cursor-pointer w-full text-slate-800 font-sans"
+          >
+            <option value="all" className="bg-white text-slate-850">All Categories</option>
+            <option value="financial" className="bg-white text-slate-850">Financial Reports</option>
+            <option value="portfolio" className="bg-white text-slate-850">Portfolio Reports</option>
+            <option value="risk" className="bg-white text-slate-850">Risk Reports</option>
+          </select>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Total Revenue FY24", value: "₹2.2Cr", change: "+28.4% YoY", bg: "bg-indigo-50 border-indigo-100", text: "text-indigo-600" },
-          { label: "Active Pump Partners", value: "89", change: "+27 this FY", bg: "bg-orange-50 border-orange-100", text: "text-orange-600" },
-          { label: "Avg. Quarterly ROI", value: "23.0%", change: "+5.8% vs FY23", bg: "bg-green-50 border-green-100", text: "text-green-600" },
-          { label: "Platform AUM", value: "₹1.83Cr", change: "Wallet funds managed", bg: "bg-purple-50 border-purple-100", text: "text-purple-600" },
-        ].map(s => (
-          <div key={s.label} className={`${s.bg} border rounded-xl p-4`}>
-            <p className={`text-xl font-black ${s.text}`}>{s.value}</p>
-            <p className="text-xs font-semibold text-gray-700 mt-1">{s.label}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{s.change}</p>
-          </div>
-        ))}
+      {/* Reports Table */}
+      <div className="bg-white border border-slate-200/60 rounded-3xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200/60 bg-slate-50 text-[9px] font-black text-slate-450 uppercase tracking-wider">
+                <th className="p-4 pl-6">Report ID</th>
+                <th className="p-4">Report Name</th>
+                <th className="p-4">Category</th>
+                <th className="p-4">Date Generated</th>
+                <th className="p-4 text-center">File Size</th>
+                <th className="p-4 text-right pr-6">Export Options</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
+              {filteredReports.map((report) => (
+                <tr key={report.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-4 pl-6 font-bold text-slate-400">{report.id}</td>
+                  <td className="p-4 font-black text-slate-800 flex items-center gap-2">
+                    <FileText className="h-4.5 w-4.5 text-orange-500" />
+                    {report.name}
+                  </td>
+                  <td className="p-4">
+                    <span className="px-2 py-0.5 bg-slate-50 border border-slate-200/60 rounded text-[9px] font-black uppercase text-slate-600">
+                      {categoryLabels[report.category]}
+                    </span>
+                  </td>
+                  <td className="p-4 text-slate-500">{report.createdDate}</td>
+                  <td className="p-4 text-center text-slate-500">{report.fileSize}</td>
+                  <td className="p-4 text-right pr-6">
+                    <div className="flex justify-end gap-1.5 font-bold">
+                      <button
+                        onClick={() => handleDownload(report, 'PDF')}
+                        className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 hover:text-slate-850 rounded text-[10px] transition-all cursor-pointer border border-slate-200"
+                      >
+                        PDF
+                      </button>
+                      <button
+                        onClick={() => handleDownload(report, 'CSV')}
+                        className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 hover:text-slate-850 rounded text-[10px] transition-all cursor-pointer border border-slate-200"
+                      >
+                        CSV
+                      </button>
+                      <button
+                        onClick={() => handleDownload(report, 'Excel')}
+                        className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 hover:text-slate-850 rounded text-[10px] transition-all cursor-pointer border border-slate-200"
+                      >
+                        XLS
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+
+              {filteredReports.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-500 font-bold">
+                    <FileText className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                    <p className="text-xs">No reports found matching filters.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue Chart */}
-        <div className="lg:col-span-2 card p-5">
-          <h2 className="text-sm font-bold text-gray-900 mb-4">Quarterly Revenue & ROI Trend</h2>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={quarterlyData} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="quarter" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false}
-                tickFormatter={v => `₹${(v/100000).toFixed(0)}L`} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} unit="%" />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)", fontSize: 12 }} />
-              <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill="#6366f1" radius={[4, 4, 0, 0]} opacity={0.9} />
-              <Bar yAxisId="right" dataKey="roi" name="ROI %" fill="#f97316" radius={[4, 4, 0, 0]} opacity={0.8} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Revenue by Plan */}
-        <div className="card p-5">
-          <h2 className="text-sm font-bold text-gray-900 mb-4">Revenue by Subscription Plan</h2>
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie data={revenueByPlan} cx="50%" cy="50%" outerRadius={65} dataKey="value" paddingAngle={3}>
-                {revenueByPlan.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)", fontSize: 12 }}
-                formatter={(v: number) => `${v}%`} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-2 mt-2">
-            {revenueByPlan.map(p => (
-              <div key={p.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm" style={{ background: p.color }} />
-                  <span className="text-xs text-gray-600">{p.name}</span>
+      {/* Compile Report Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { if (!isLoading) setIsModalOpen(false); }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white border border-slate-200/60 rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden z-10 p-6 text-left"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800">Compile Portfolio Audit</h3>
+                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Collects sales ledgers and fuel reserves directly from station terminals</p>
                 </div>
-                <span className="text-xs font-bold text-gray-900">{p.value}%</span>
+                {!isLoading && (
+                  <button
+                    onClick={() => setIsModalOpen(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      {/* Report Downloads */}
-      <div className="card">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-indigo-500" /> Available Reports
-          </h2>
-          <span className="text-xs text-gray-400">{reports.length} reports available</span>
-        </div>
-        <div className="divide-y divide-gray-50">
-          {reports.map((r, i) => (
-            <div key={i} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-              <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <FileText className="w-5 h-5 text-indigo-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{r.title}</p>
-                <div className="flex items-center gap-3 mt-0.5">
-                  <span className="text-xs text-gray-400 flex items-center gap-1"><Calendar className="w-3 h-3" />{r.date}</span>
-                  <span className={`badge text-xs ${r.type === "Annual" ? "badge-indigo" : r.type === "Quarterly" ? "badge-blue" : r.type === "Special" ? "badge-purple" : "badge-gray"}`} style={r.type === "Annual" ? { background: "#eef2ff", color: "#4338ca" } : {}}>
-                    {r.type}
-                  </span>
-                  <span className="text-xs text-gray-400">{r.size}</span>
+              {!isLoading ? (
+                <form onSubmit={handleGenerateReportSubmit} className="space-y-4 text-xs font-semibold text-slate-650">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase">Report Title *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Q2 Gross Margins Reconciliations"
+                      value={reportName}
+                      onChange={(e) => setReportName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-orange-500/50"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase">Report Category *</label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value as ExecutiveReport['category'])}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs font-bold text-slate-850 focus:outline-none focus:bg-white focus:border-orange-500/50 cursor-pointer"
+                    >
+                      <option value="financial">Financial Report</option>
+                      <option value="portfolio">Portfolio Report</option>
+                      <option value="revenue">Revenue Report</option>
+                      <option value="growth">Growth Report</option>
+                      <option value="fleet">Fleet Report</option>
+                      <option value="risk">Risk Analysis</option>
+                    </select>
+                  </div>
+
+                  <div className="flex gap-3 justify-end border-t border-slate-100 pt-4 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-xs font-bold hover:shadow-lg hover:shadow-orange-500/20 transition-all cursor-pointer"
+                    >
+                      Compile Report
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="py-8 text-center flex flex-col items-center justify-center space-y-4">
+                  <Loader2 className="h-10 w-10 text-orange-500 animate-spin" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-black text-slate-800 uppercase tracking-wider">Generating Audit Journal...</p>
+                    <p className="text-[10px] text-slate-500 font-semibold">{compilingMsg}</p>
+                  </div>
+                  {/* Progress bar simulation */}
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden max-w-[200px] border border-slate-200/60">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: '100%' }}
+                      transition={{ duration: 2.3 }}
+                      className="bg-orange-500 h-full rounded-full"
+                    />
+                  </div>
                 </div>
-              </div>
-              <button className="btn-secondary flex items-center gap-1.5 py-1.5 px-3 text-xs">
-                <Download className="w-3.5 h-3.5" /> {r.format}
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
