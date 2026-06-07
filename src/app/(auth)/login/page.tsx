@@ -58,7 +58,7 @@ export default function LoginPage() {
     try {
       const result = await login(data.emailOrPhone, data.password, data.rememberMe);
       toast.success('Successfully logged in!');
-      
+
       // Always direct the user to the role selection page first to choose their active profile
       router.push('/select-role');
     } catch (err: any) {

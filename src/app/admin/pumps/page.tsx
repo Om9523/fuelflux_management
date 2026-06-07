@@ -163,7 +163,7 @@ export default function AdminAllPumpsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right font-mono font-bold text-slate-800">
-                      ₹{pump.revenue.toLocaleString('en-IN')}
+                      ₹{(pump.revenue ?? 0).toLocaleString('en-IN')}
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-[11px] font-bold text-slate-700">

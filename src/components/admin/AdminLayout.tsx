@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useAdminStore } from '@/stores/admin.store';
 import { useSidebarStore } from '@/stores/sidebar.store';
+import { useAuthStore } from '@/stores/auth.store';
 import { toast } from '../feedback/Toast';
 
 export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -42,6 +43,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
   const pathname = usePathname();
   const { isCollapsed, toggleSidebar } = useSidebarStore();
   const { adminUser, adminLogout, initializeAdminSession, isAdminAuthenticated } = useAdminStore();
+  const { logout: standardLogout } = useAuthStore();
   
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -131,8 +133,9 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const handleLogout = () => {
     adminLogout();
+    standardLogout();
     toast.success('Logged out successfully');
-    router.push('/admin/login');
+    router.push('/login');
   };
 
   const sidebarWidth = isCollapsed ? 'w-20' : 'w-64';

@@ -85,7 +85,7 @@ export default function SelectRolePage() {
     try {
       await switchRole(role);
       toast.success(`Role selected: ${roleCardsMeta[role].title}`);
-      
+
       // If Pump Owner is selected, redirect to the Pump Owner Operations Dashboard (/dashboard)
       if (role === 'pump_owner') {
         router.push('/dashboard');
@@ -95,8 +95,11 @@ export default function SelectRolePage() {
         router.push('/investor');
       } else if (role === 'admin') {
         router.push('/admin');
+      } else if (role === 'employee') {
+        router.push('/employee');
       } else {
-        toast.info(`Redirecting to mock ${roleCardsMeta[role].title} panel...`);
+        const fallbackRole = role as Role;
+        toast.info(`Redirecting to mock ${roleCardsMeta[fallbackRole].title} panel...`);
         router.push('/dashboard');
       }
 

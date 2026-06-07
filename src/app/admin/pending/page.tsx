@@ -173,7 +173,7 @@ export default function AdminPendingApprovalsPage() {
                         </div>
                         <div className="space-y-0.5">
                           <span className="text-xs font-extrabold text-slate-800 block">GST Certificate</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{activePump.documents.gstCertificate}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{activePump.documents?.gstCertificate || 'N/A'}</span>
                         </div>
                       </div>
                       <button className="p-1.5 hover:bg-slate-50 rounded-lg border border-slate-200 text-slate-500 outline-none cursor-pointer">
@@ -188,7 +188,7 @@ export default function AdminPendingApprovalsPage() {
                         </div>
                         <div className="space-y-0.5">
                           <span className="text-xs font-extrabold text-slate-800 block">Fuel NOC License</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{activePump.documents.fuelLicense}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{activePump.documents?.fuelLicense || 'N/A'}</span>
                         </div>
                       </div>
                       <button className="p-1.5 hover:bg-slate-50 rounded-lg border border-slate-200 text-slate-500 outline-none cursor-pointer">
@@ -203,7 +203,7 @@ export default function AdminPendingApprovalsPage() {
                         </div>
                         <div className="space-y-0.5">
                           <span className="text-xs font-extrabold text-slate-800 block">Aadhaar Card</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{activePump.documents.aadhaar}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{activePump.documents?.aadhaar || 'N/A'}</span>
                         </div>
                       </div>
                       <button className="p-1.5 hover:bg-slate-50 rounded-lg border border-slate-200 text-slate-500 outline-none cursor-pointer">
@@ -218,7 +218,7 @@ export default function AdminPendingApprovalsPage() {
                         </div>
                         <div className="space-y-0.5">
                           <span className="text-xs font-extrabold text-slate-800 block">PAN Card copy</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{activePump.documents.pan}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{activePump.documents?.pan || 'N/A'}</span>
                         </div>
                       </div>
                       <button className="p-1.5 hover:bg-slate-50 rounded-lg border border-slate-200 text-slate-500 outline-none cursor-pointer">
@@ -234,7 +234,7 @@ export default function AdminPendingApprovalsPage() {
                     Site Layout Photos (1)
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {activePump.documents.pumpImages.map((img, idx) => (
+                    {(activePump.documents?.pumpImages || []).map((img, idx) => (
                       <div key={idx} className="relative rounded-xl border border-slate-200 p-2 space-y-1.5 text-center bg-slate-50">
                         <div className="h-28 rounded-lg bg-slate-200/50 flex items-center justify-center text-slate-400">
                           <FileImage className="h-8 w-8" />

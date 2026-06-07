@@ -32,7 +32,27 @@ import {
   SubscriptionRecord,
   AuditLog,
   SupportTicket,
-  FraudAlert
+  FraudAlert,
+  EmployeeProfile,
+  AttendanceRecord,
+  LeaveRecord,
+  SalaryRecord,
+  Announcement,
+  ShiftDetails,
+  getEmployeeProfile,
+  updateEmployeeProfile,
+  getEmployees,
+  saveEmployees,
+  getEmployeeAttendance,
+  saveAttendance,
+  getAttendance,
+  getEmployeeLeaves,
+  applyLeaveInMockDB,
+  getEmployeeSalaries,
+  getAnnouncements,
+  getEmployeeShift,
+  getShifts,
+  saveShifts
 } from './mock-db';
 
 // Base API configuration
@@ -94,7 +114,11 @@ api.defaults.adapter = async (config: AxiosRequestConfig): Promise<AxiosResponse
 
   const { url, method, data } = config;
   const parsedData = data ? (typeof data === 'string' ? JSON.parse(data) : data) : {};
-  const authHeader = config.headers?.Authorization as string;
+  const authHeader = config.headers
+    ? (typeof config.headers.get === 'function'
+      ? config.headers.get('Authorization') as string
+      : (config.headers as any)['Authorization'] || (config.headers as any)['authorization'])
+    : undefined;
 
   // Extract simulated authorization token
   let tokenUser: any = null;
@@ -610,6 +634,43 @@ api.defaults.adapter = async (config: AxiosRequestConfig): Promise<AxiosResponse
       };
     }
 
+    if (url === '/auth/refresh' && method?.toUpperCase() === 'POST') {
+      const { refreshToken } = parsedData;
+      const decoded = decodeFakeJWT(refreshToken);
+      if (!decoded || decoded.exp < Date.now() / 1000) {
+        return Promise.reject({
+          response: {
+            status: 401,
+            data: { error: { code: 'INVALID_REFRESH_TOKEN', message: 'Refresh token expired or invalid' } },
+            config,
+          },
+        });
+      }
+      const user = getUserByEmailOrPhone(decoded.id);
+      if (!user) {
+        return Promise.reject({
+          response: {
+            status: 401,
+            data: { error: { code: 'USER_NOT_FOUND', message: 'User not found' } },
+            config,
+          },
+        });
+      }
+      const newAccessToken = createFakeJWT({ id: user.id, roles: user.roles }, 15);
+      const newRefreshToken = createFakeJWT({ id: user.id }, 60 * 24 * 7);
+      return {
+        data: {
+          success: true,
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
     if (url === '/auth/register' && method?.toUpperCase() === 'POST') {
       const { name, email, phone, password, roles } = parsedData;
       const existing = getUserByEmailOrPhone(email) || getUserByEmailOrPhone(phone);
@@ -825,6 +886,326 @@ api.defaults.adapter = async (config: AxiosRequestConfig): Promise<AxiosResponse
       };
     }
 
+    // ==========================================
+    // EMPLOYEE SELF-SERVICE ENDPOINTS
+    // ==========================================
+    if (url === '/employee/profile' && method?.toUpperCase() === 'GET') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized session context' } }, config },
+        });
+      }
+      const userId = tokenUser.id;
+      let profile = getEmployeeProfile(userId);
+      const user = getUserByEmailOrPhone(userId);
+      if (!user) {
+        return Promise.reject({
+          response: { status: 404, data: { error: { message: 'User not found' } }, config },
+        });
+      }
+      if (!profile) {
+        // Create default profile for the user
+        const newProfile: EmployeeProfile = {
+          id: userId,
+          employeeId: 'EMP-' + Math.floor(1000 + Math.random() * 9000),
+          designation: 'Fuel Attendant',
+          assignedPump: 'Bharat Petroleum Sector 62',
+          joiningDate: new Date().toISOString().split('T')[0],
+          photoUrl: '',
+          metrics: {
+            transactionsHandled: 0,
+            attendanceScore: 100,
+            performanceScore: 80,
+          }
+        };
+        const employees = getEmployees();
+        employees.push(newProfile);
+        saveEmployees(employees);
+        profile = newProfile;
+      }
+      return {
+        data: { success: true, profile, user: { id: user.id, name: user.name, email: user.email, phone: user.phone, roles: user.roles } },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/profile' && method?.toUpperCase() === 'PATCH') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized session context' } }, config },
+        });
+      }
+      const userId = tokenUser.id;
+      const { name, email, phone, designation, photoUrl } = parsedData;
+
+      // Update User table
+      const users = getUsers();
+      const uIdx = users.findIndex((u) => u.id === userId);
+      if (uIdx !== -1) {
+        if (name) users[uIdx].name = name;
+        if (email) users[uIdx].email = email;
+        if (phone) users[uIdx].phone = phone;
+        saveUsers(users);
+      }
+
+      // Update Employee table
+      const profile = updateEmployeeProfile(userId, {
+        ...(designation && { designation }),
+        ...(photoUrl !== undefined && { photoUrl }),
+      });
+
+      return {
+        data: { success: true, profile },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/change-password' && method?.toUpperCase() === 'POST') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized session context' } }, config },
+        });
+      }
+      const userId = tokenUser.id;
+      const { currentPassword, newPassword } = parsedData;
+      const user = getUserByEmailOrPhone(userId);
+      if (!user || user.passwordHash !== currentPassword) {
+        return Promise.reject({
+          response: { status: 400, data: { error: { message: 'Current password is incorrect' } }, config },
+        });
+      }
+      updatePasswordInMockDB(user.email, newPassword);
+      return {
+        data: { success: true, message: 'Password updated successfully' },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/attendance' && method?.toUpperCase() === 'GET') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized session context' } }, config },
+        });
+      }
+      const records = getEmployeeAttendance(tokenUser.id);
+      return {
+        data: { success: true, records },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/attendance/check-in' && method?.toUpperCase() === 'POST') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized' } }, config },
+        });
+      }
+      const userId = tokenUser.id;
+      const today = new Date().toISOString().split('T')[0];
+      const records = getAttendance();
+      
+      // Check if already checked in today
+      const already = records.find((r) => r.userId === userId && r.date === today);
+      if (already) {
+        return Promise.reject({
+          response: { status: 400, data: { error: { message: 'Already checked in today' } }, config },
+        });
+      }
+
+      const now = new Date();
+      const checkInTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      
+      // Determine if late (shift starts at 08:00, grace period until 08:15)
+      const [hours, mins] = checkInTime.split(':').map(Number);
+      const isLate = (hours > 8) || (hours === 8 && mins > 15);
+      const status = isLate ? 'Late' : 'Present';
+
+      const newRecord: AttendanceRecord = {
+        id: 'att_' + Math.random().toString(36).substr(2, 9),
+        userId,
+        date: today,
+        checkIn: checkInTime,
+        checkOut: null,
+        workingHours: 0,
+        status,
+      };
+
+      records.push(newRecord);
+      saveAttendance(records);
+
+      return {
+        data: { success: true, record: newRecord },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/attendance/check-out' && method?.toUpperCase() === 'POST') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized' } }, config },
+        });
+      }
+      const userId = tokenUser.id;
+      const today = new Date().toISOString().split('T')[0];
+      const records = getAttendance();
+      const idx = records.findIndex((r) => r.userId === userId && r.date === today);
+      
+      if (idx === -1 || records[idx].checkIn === null) {
+        return Promise.reject({
+          response: { status: 400, data: { error: { message: 'You have not checked in today yet' } }, config },
+        });
+      }
+
+      if (records[idx].checkOut !== null) {
+        return Promise.reject({
+          response: { status: 400, data: { error: { message: 'Already checked out today' } }, config },
+        });
+      }
+
+      const now = new Date();
+      const checkOutTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      
+      // Calculate working hours
+      const checkInTimeStr = records[idx].checkIn!;
+      const [inH, inM] = checkInTimeStr.split(':').map(Number);
+      const [outH, outM] = checkOutTime.split(':').map(Number);
+      const checkInTotalMins = inH * 60 + inM;
+      const checkOutTotalMins = outH * 60 + outM;
+      
+      let minsDiff = checkOutTotalMins - checkInTotalMins;
+      if (minsDiff < 0) minsDiff += 24 * 60; // crossover midnight shift
+      const workingHours = parseFloat((minsDiff / 60).toFixed(2));
+
+      records[idx].checkOut = checkOutTime;
+      records[idx].workingHours = workingHours;
+      saveAttendance(records);
+
+      return {
+        data: { success: true, record: records[idx] },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/shifts' && method?.toUpperCase() === 'GET') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized' } }, config },
+        });
+      }
+      let shift = getEmployeeShift(tokenUser.id);
+      if (!shift) {
+        // Create default shift
+        const newShift: ShiftDetails = {
+          id: 'shift_' + Math.random().toString(36).substr(2, 9),
+          userId: tokenUser.id,
+          currentShift: { name: 'Morning Shift', startTime: '08:00', endTime: '16:00' },
+          weeklySchedule: {
+            Monday: { shiftType: 'Morning', time: '08:00 - 16:00' },
+            Tuesday: { shiftType: 'Morning', time: '08:00 - 16:00' },
+            Wednesday: { shiftType: 'Morning', time: '08:00 - 16:00' },
+            Thursday: { shiftType: 'Morning', time: '08:00 - 16:00' },
+            Friday: { shiftType: 'Morning', time: '08:00 - 16:00' },
+            Saturday: { shiftType: 'Off', time: 'Rest Day' },
+            Sunday: { shiftType: 'Off', time: 'Rest Day' },
+          }
+        };
+        const shifts = getShifts();
+        shifts.push(newShift);
+        saveShifts(shifts);
+        shift = newShift;
+      }
+      return {
+        data: { success: true, shift },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/leave' && method?.toUpperCase() === 'GET') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized' } }, config },
+        });
+      }
+      const records = getEmployeeLeaves(tokenUser.id);
+      return {
+        data: { success: true, records },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/leave/apply' && method?.toUpperCase() === 'POST') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized' } }, config },
+        });
+      }
+      const { leaveType, startDate, endDate, reason } = parsedData;
+      const record = applyLeaveInMockDB(tokenUser.id, { leaveType, startDate, endDate, reason });
+      return {
+        data: { success: true, record },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/salary' && method?.toUpperCase() === 'GET') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized' } }, config },
+        });
+      }
+      const records = getEmployeeSalaries(tokenUser.id);
+      return {
+        data: { success: true, records },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
+    if (url === '/employee/announcements' && method?.toUpperCase() === 'GET') {
+      if (!tokenUser) {
+        return Promise.reject({
+          response: { status: 401, data: { error: { message: 'Unauthorized' } }, config },
+        });
+      }
+      const records = getAnnouncements();
+      return {
+        data: { success: true, records },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config as any,
+      };
+    }
+
     // Default Fallback
     return Promise.reject({
       response: {
@@ -869,10 +1250,10 @@ const processQueue = (error: any, token: string | null = null) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || error.response?.config;
     
     // Check if error is 401 and not a retry already
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       const errorCode = error.response.data?.error?.code;
 
       // Don't refresh if the refresh endpoint itself failed

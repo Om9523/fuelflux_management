@@ -23,7 +23,12 @@ type LoginSchemaType = z.infer<typeof loginSchema>;
 export default function AdminLoginPage() {
   const router = useRouter();
   const { adminLogin, isLoading } = useAdminStore();
-  const { user } = useAuthStore();
+  const { user, initializeSession } = useAuthStore();
+
+  // Initialize session on mount to load standard session if it exists
+  useEffect(() => {
+    initializeSession();
+  }, [initializeSession]);
 
   // Auto-redirect if user has active standard login session with admin role
   useEffect(() => {

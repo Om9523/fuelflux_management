@@ -59,18 +59,32 @@ export function middleware(request: NextRequest) {
   // User is logged in
   if (token) {
     if (isPublicRoute && pathname !== '/') {
-      if (!activeRole) {
-        const selectRoleUrl = new URL('/select-role', request.url);
-        return NextResponse.redirect(selectRoleUrl);
-      } else {
-        const dashboardUrl = new URL('/dashboard', request.url);
-        return NextResponse.redirect(dashboardUrl);
-      }
+      const selectRoleUrl = new URL('/select-role', request.url);
+      return NextResponse.redirect(selectRoleUrl);
     }
 
     if (!activeRole && pathname !== '/select-role') {
       const selectRoleUrl = new URL('/select-role', request.url);
       return NextResponse.redirect(selectRoleUrl);
+    }
+
+    // Role-based route authorization guards
+    if (activeRole && !isPublicRoute && pathname !== '/select-role') {
+      if (activeRole === 'employee' && !pathname.startsWith('/employee')) {
+        return NextResponse.redirect(new URL('/employee', request.url));
+      }
+      if (activeRole === 'logistic' && !pathname.startsWith('/logistic')) {
+        return NextResponse.redirect(new URL('/logistic/dashboard', request.url));
+      }
+      if (activeRole === 'investor' && !pathname.startsWith('/investor')) {
+        return NextResponse.redirect(new URL('/investor', request.url));
+      }
+      if (activeRole === 'admin' && !pathname.startsWith('/admin')) {
+        return NextResponse.redirect(new URL('/admin', request.url));
+      }
+      if (activeRole === 'pump_owner' && (pathname.startsWith('/employee') || pathname.startsWith('/logistic') || pathname.startsWith('/investor') || pathname.startsWith('/admin'))) {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
     }
   }
 

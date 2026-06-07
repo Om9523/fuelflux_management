@@ -10,7 +10,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
-  login: (emailOrPhone: string, password: string, rememberMe: boolean) => Promise<{ rolesCount: number }>;
+  login: (emailOrPhone: string, password: string, rememberMe: boolean) => Promise<{ rolesCount: number; role?: Role }>;
   registerUser: (formData: any) => Promise<void>;
   verifyOTP: (identifier: string, code: string) => Promise<void>;
   resendOTP: (identifier: string, type: 'sms' | 'email') => Promise<void>;
@@ -19,6 +19,7 @@ interface AuthState {
   switchRole: (role: Role) => Promise<void>;
   logout: () => void;
   initializeSession: () => void;
+  refreshSession: () => Promise<void>;
 }
 
 // Helper to set cookie
@@ -110,14 +111,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       setCookie('fuelflux_accessToken', accessToken, rememberMe ? 7 : 1);
       setCookie('fuelflux_refreshToken', refreshToken, rememberMe ? 7 : 1);
 
+      let activeRole: Role | null = null;
+      if (user.roles && user.roles.length === 1) {
+        const role = user.roles[0];
+        activeRole = role;
+        localStorage.setItem('fuelflux_activeRole', role);
+        setCookie('fuelflux_activeRole', role, rememberMe ? 7 : 1);
+      }
+
       set({
         user,
+        activeRole,
+        permissions: activeRole ? getPermissionsForRole(activeRole) : [],
         isAuthenticated: true,
         isLoading: false,
         error: null,
       });
 
-      return { rolesCount: user.roles.length };
+      return { rolesCount: user.roles.length, role: activeRole || undefined };
     } catch (err: any) {
       set({ isLoading: false, error: err.message || 'Login failed' });
       throw err;
@@ -219,5 +230,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       permissions: [],
       error: null,
     });
+  },
+
+  refreshSession: async () => {
+    set({ isLoading: true });
+    try {
+      const refreshToken = localStorage.getItem('fuelflux_refreshToken');
+      if (!refreshToken) throw new Error('No refresh token found');
+
+      const response = await api.post('/auth/refresh', { refreshToken });
+      const { accessToken, refreshToken: newRefreshToken } = response.data;
+
+      localStorage.setItem('fuelflux_accessToken', accessToken);
+      localStorage.setItem('fuelflux_refreshToken', newRefreshToken);
+      setCookie('fuelflux_accessToken', accessToken, 7);
+      setCookie('fuelflux_refreshToken', newRefreshToken, 7);
+
+      set({ isLoading: false });
+    } catch (err: any) {
+      get().logout();
+      throw err;
+    }
   },
 }));

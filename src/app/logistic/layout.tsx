@@ -26,6 +26,7 @@ import { useSidebarStore } from '@/stores/sidebar.store';
 import { useFleetStore } from '@/stores/fleet.store';
 import { useWalletStore } from '@/stores/wallet.store';
 import { useNotificationStore } from '@/stores/notification.store';
+import { useAuthStore } from '@/stores/auth.store';
 
 export default function LogisticLayout({
   children,
@@ -38,17 +39,40 @@ export default function LogisticLayout({
   const { fleets, activeFleetId, setActiveFleetId, initializeFleetStore } = useFleetStore();
   const { initializeWalletStore } = useWalletStore();
   const { unreadCount } = useNotificationStore();
+  const { user, isAuthenticated, isLoading, logout, initializeSession } = useAuthStore();
 
   const [fleetDropdownOpen, setFleetDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const fleetDropdownRef = useRef<HTMLDivElement>(null);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Initialize stores on mount
+  // Initialize stores and session on mount
   useEffect(() => {
+    initializeSession();
     initializeFleetStore();
     initializeWalletStore();
-  }, [initializeFleetStore, initializeWalletStore]);
+  }, [initializeSession, initializeFleetStore, initializeWalletStore]);
+
+  // Client-side protection backup redirect
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+
+  const initials = user?.name
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+    : 'VS';
 
   // Click outside handlers
   useEffect(() => {
@@ -63,6 +87,19 @@ export default function LogisticLayout({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-9 w-9 border-t-2 border-orange-500" />
+          <span className="text-xs font-bold text-slate-450 font-mono tracking-widest uppercase">
+            Securing Session Context...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   const activeFleet = fleets.find((f) => f.id === activeFleetId) || fleets[0];
 
@@ -141,15 +178,15 @@ export default function LogisticLayout({
             <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 font-bold flex items-center justify-center shadow-sm">
-                  VS
+                  {initials}
                 </div>
                 <div className="overflow-hidden">
-                  <h4 className="text-sm font-semibold text-slate-800 truncate">Vikram Singh</h4>
+                  <h4 className="text-sm font-semibold text-slate-800 truncate">{user?.name || 'Vikram Singh'}</h4>
                   <p className="text-xs text-slate-400 font-medium truncate">Logistics Head</p>
                 </div>
               </div>
               <button 
-                onClick={() => router.push('/login')}
+                onClick={handleLogout}
                 className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
                 title="Sign Out"
               >
@@ -158,8 +195,9 @@ export default function LogisticLayout({
             </div>
           ) : (
             <button
-              onClick={() => router.push('/login')}
+              onClick={handleLogout}
               className="w-12 h-12 mx-auto rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+              title="Sign Out"
             >
               <LogOut className="h-5 w-5" />
             </button>
@@ -232,16 +270,17 @@ export default function LogisticLayout({
                 <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 font-bold flex items-center justify-center shadow-sm">
-                      VS
+                      {initials}
                     </div>
                     <div className="overflow-hidden">
-                      <h4 className="text-sm font-semibold text-slate-800 truncate">Vikram Singh</h4>
+                      <h4 className="text-sm font-semibold text-slate-800 truncate">{user?.name || 'Vikram Singh'}</h4>
                       <p className="text-xs text-slate-400 font-medium truncate">Logistics Head</p>
                     </div>
                   </div>
                   <button
-                    onClick={() => router.push('/login')}
+                    onClick={handleLogout}
                     className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="Sign Out"
                   >
                     <LogOut className="h-5 w-5" />
                   </button>
@@ -366,10 +405,10 @@ export default function LogisticLayout({
                 className="flex items-center gap-2.5 p-1 rounded-full md:pr-4 md:pl-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 transition-all cursor-pointer shrink-0"
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-bold flex items-center justify-center shadow-md shadow-orange-500/10 shrink-0">
-                  VS
+                  {initials}
                 </div>
                 <div className="hidden md:block text-left overflow-hidden max-w-[100px]">
-                  <p className="text-xs font-bold text-slate-800 leading-none truncate">Vikram Singh</p>
+                  <p className="text-xs font-bold text-slate-800 leading-none truncate">{user?.name || 'Vikram Singh'}</p>
                   <p className="text-[9px] font-bold text-slate-400 leading-none mt-1 uppercase tracking-wider">Logistics</p>
                 </div>
                 <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden md:block shrink-0" />
@@ -385,14 +424,14 @@ export default function LogisticLayout({
                     className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2 overflow-hidden"
                   >
                     <div className="px-3 py-2 border-b border-slate-100">
-                      <p className="text-xs font-bold text-slate-800">Vikram Singh</p>
-                      <p className="text-[10px] text-slate-400">Head of Operations</p>
+                      <p className="text-xs font-bold text-slate-800">{user?.name || 'Vikram Singh'}</p>
+                      <p className="text-[10px] text-slate-500">Head of Operations</p>
                     </div>
                     <div className="mt-1.5 space-y-1">
                       <Link
                         href="/logistic/profile"
                         onClick={() => setProfileDropdownOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-all"
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-650 hover:text-slate-800 hover:bg-slate-50 transition-all"
                       >
                         <User className="h-4 w-4 text-slate-400" />
                         Company Settings
@@ -400,7 +439,7 @@ export default function LogisticLayout({
                       <Link
                         href="/logistic/profile"
                         onClick={() => setProfileDropdownOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-all"
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-650 hover:text-slate-800 hover:bg-slate-50 transition-all"
                       >
                         <ShieldCheck className="h-4 w-4 text-slate-400" />
                         Compliance & Audit
@@ -408,7 +447,7 @@ export default function LogisticLayout({
                       <button
                         onClick={() => {
                           setProfileDropdownOpen(false);
-                          router.push('/login');
+                          handleLogout();
                         }}
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 transition-all cursor-pointer"
                       >
