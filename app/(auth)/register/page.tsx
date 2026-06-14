@@ -51,7 +51,7 @@ type Step2Values = z.infer<typeof step2Schema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { registerUser, verifyOTP, resendOTP, isLoading } = useAuthStore();
+  const { registerUser, verifyOTP, sendOTP, isLoading } = useAuthStore();
 
   // Wizard State management
   const [step, setStep] = useState(1);
@@ -187,7 +187,7 @@ export default function RegisterPage() {
   const handleResendClick = async () => {
     const activeIdentifier = otpTab === 'email' ? formData.email : formData.phone;
     try {
-      await resendOTP(activeIdentifier, otpTab === 'email' ? 'email' : 'sms');
+      await sendOTP(activeIdentifier);
       toast.success(`New OTP sent to ${otpTab === 'email' ? 'email' : 'SMS'}`);
       startResendTimer();
       setOtpCode('');

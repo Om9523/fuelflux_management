@@ -39,12 +39,37 @@ export interface DashboardStats {
   active_attendants: number;
 }
 
+export interface WeeklyTrendPoint {
+  day: string;       // "Mon" … "Sun"
+  revenue: number;
+  count: number;
+}
+
+export interface TopAttendant {
+  id: number;
+  name: string;
+  sold_liters: number;
+  total_amount: number;
+}
+
+export interface ForecourtActivity {
+  id: number;
+  nozzle_id: number;
+  vehicle_plate: string | null;
+  volume: number;
+  amount: number;
+  timestamp: string;
+}
+
 export interface DashboardOverview {
   status: 'ok' | 'no_pump';
   message: string;
   pump: BackendPump | null;
   stats: DashboardStats | null;
   pumps_count: number;
+  weekly_trend: WeeklyTrendPoint[];
+  top_attendants: TopAttendant[];
+  forecourt_activities: ForecourtActivity[];
 }
 
 export interface PumpsListResponse {

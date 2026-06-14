@@ -74,7 +74,7 @@ function getStorage() {
 
 /** Map backend pump → frontend Pump shape */
 function mapBackendPump(bp: BackendPump): Pump {
-  const mappedStatus = bp.status === 'active' ? 'approved' : bp.status;
+  const mappedStatus = (bp.status as string) === 'active' ? 'approved' : bp.status;
   return {
     id: String(bp.id),
     name: bp.name,

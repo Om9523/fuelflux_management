@@ -3,38 +3,53 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search,
-  Filter,
-  FileText,
-  X,
-  Printer,
-  Calendar,
-  Building,
-  Fuel,
-  Info,
-  MapPin,
-  Clock,
-  Compass,
-  Thermometer,
-  ShieldCheck,
-  TrendingDown,
-  Download
+  Search, Filter, X, Printer, Fuel,
+  MapPin, Compass, Thermometer, ShieldCheck, Download
 } from 'lucide-react';
-import { useFleetStore, FuelTransaction } from '@/stores/fleet.store';
-import { transactionsService } from '@/services/transactions.service';
+import backendApi from '@/lib/backendApi';
 import { toast } from '@/components/feedback/Toast';
+import { useFleetStore } from '@/stores/fleet.store';
+
+interface LiveTransaction {
+  id: string;
+  vehicleId: string;
+  vehicleNumber: string;
+  pumpName: string;
+  fuelType: string;
+  quantity: number;
+  amount: number;
+  driverName: string;
+  paymentType: 'credit' | 'wallet';
+  date: string;
+  balanceRemaining: number;
+}
 
 export default function TransactionsPage() {
-  const { activeFleetId, transactions } = useFleetStore();
-
+  const { activeFleetId } = useFleetStore();
+  const [loading, setLoading] = useState(true);
+  const [allTxns, setAllTxns] = useState<LiveTransaction[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPayment, setFilterPayment] = useState<string>('all');
   const [filterFuel, setFilterFuel] = useState<string>('all');
+  const [selectedTxn, setSelectedTxn] = useState<LiveTransaction | null>(null);
 
-  // Detail Drawer State
-  const [selectedTxn, setSelectedTxn] = useState<FuelTransaction | null>(null);
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const { data } = await backendApi.get('/logistic/transactions');
+        setAllTxns(data);
+      } catch (err) {
+        console.error('[Transactions] API error:', err);
+        toast.error('Failed to load transactions');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
-  const fleetTxns = transactions[activeFleetId] || [];
+  const fleetTxns = allTxns;
 
   // Filter transactions
   const filteredTxns = fleetTxns.filter((t) => {
@@ -124,8 +139,14 @@ export default function TransactionsPage() {
       </div>
 
       {/* Ledger Table Container */}
-      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      {loading ? (
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm flex flex-col items-center justify-center min-h-[300px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-primary" />
+          <span className="text-xs text-slate-400 font-semibold mt-3">Loading transaction ledger...</span>
+        </div>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-wider">
@@ -146,7 +167,7 @@ export default function TransactionsPage() {
                   ? <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-md text-[10px] font-bold uppercase">Credit Line</span>
                   : <span className="px-2 py-0.5 bg-orange-50 text-orange-600 border border-orange-100 rounded-md text-[10px] font-bold uppercase">Prepaid Wallet</span>;
 
-                const fuelColors = {
+                const fuelColors: Record<string, string> = {
                   diesel: 'text-orange-600 font-bold capitalize',
                   petrol: 'text-blue-600 font-bold capitalize',
                   cng: 'text-emerald-600 font-bold capitalize'
@@ -165,7 +186,7 @@ export default function TransactionsPage() {
                       {txn.pumpName}
                     </td>
                     <td className="p-4">
-                      <span className={fuelColors[txn.fuelType] || 'capitalize'}>
+                      <span className={fuelColors[txn.fuelType.toLowerCase()] || 'capitalize'}>
                         {txn.fuelType}
                       </span>
                     </td>
@@ -188,6 +209,7 @@ export default function TransactionsPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Transaction Receipt Details Slider */}
       <AnimatePresence>

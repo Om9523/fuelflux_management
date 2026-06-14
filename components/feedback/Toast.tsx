@@ -41,9 +41,14 @@ export const useToastStore = create<ToastState>((set) => ({
 
 // Simple helper function to trigger toasts easily anywhere in the application
 export const toast = {
-  success: (msg: string) => useToastStore.getState().addToast(msg, 'success'),
-  error: (msg: string) => useToastStore.getState().addToast(msg, 'error'),
-  info: (msg: string) => useToastStore.getState().addToast(msg, 'info'),
+  success: (msg: string, detail?: any) =>
+    useToastStore.getState().addToast(detail ? `${msg} - ${detail}` : msg, 'success'),
+
+  error: (msg: string, detail?: any) =>
+    useToastStore.getState().addToast(detail ? `${msg} - ${detail}` : msg, 'error'),
+
+  info: (msg: string, detail?: any) =>
+    useToastStore.getState().addToast(detail ? `${msg} - ${detail}` : msg, 'info'),
 };
 
 export const ToastContainer: React.FC = () => {

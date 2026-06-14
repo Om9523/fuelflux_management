@@ -1,17 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   Building,
-  User,
   ShieldCheck,
   FileText,
   Save,
-  Lock,
-  ChevronRight,
-  Info,
-  Calendar,
   CheckCircle2,
   Key
 } from 'lucide-react';
@@ -59,7 +53,7 @@ export default function ProfilePage() {
       });
       toast.success('Corporate configuration saved successfully.');
       setSaving(false);
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to update company profile.');
       setSaving(false);
     }

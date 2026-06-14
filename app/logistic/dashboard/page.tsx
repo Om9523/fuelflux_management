@@ -32,9 +32,21 @@ export default function LogisticDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Small timeout to simulate operations service fetch
-    const timer = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(timer);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        await Promise.all([
+          vehiclesService.getVehicles(),
+          transactionsService.getTransactions(),
+          walletService.getWallet()
+        ]);
+      } catch (err) {
+        console.warn('[LogisticDashboard] Failed to sync real backend data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, [activeFleetId]);
 
   const activeFleet = fleets.find(f => f.id === activeFleetId) || fleets[0];

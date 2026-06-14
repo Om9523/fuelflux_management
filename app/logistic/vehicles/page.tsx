@@ -3,24 +3,24 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Truck,
-  Plus,
+  Car,
   Search,
   Filter,
+  Plus,
+  BatteryCharging,
+  AlertTriangle,
+  CheckCircle2,
+  MoreVertical,
+  X,
+  ShieldCheck,
+  Zap,
+  Truck,
+  Bus,
+  SlidersHorizontal,
   User,
   Phone,
-  Coins,
-  ShieldCheck,
-  ShieldAlert,
-  X,
-  CreditCard,
   ChevronRight,
-  TrendingUp,
-  SlidersHorizontal,
-  Bus,
-  Car,
-  FileText,
-  Clock
+  ShieldAlert
 } from 'lucide-react';
 import { useFleetStore, LogisticVehicle, VehicleType, FuelType, VehicleStatus } from '@/stores/fleet.store';
 import { vehiclesService } from '@/services/vehicles.service';
@@ -29,7 +29,22 @@ import { toast } from '@/components/feedback/Toast';
 export default function VehiclesPage() {
   const { activeFleetId, vehicles, transactions, addVehicle, requestCreditIncrease, updateVehicleStatus } = useFleetStore();
 
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    const fetchVehicles = async () => {
+      setLoading(true);
+      try {
+        await vehiclesService.getVehicles();
+      } catch (err) {
+        console.warn('[VehiclesPage] Failed to fetch real backend vehicles:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVehicles();
+  }, [activeFleetId]);
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
@@ -221,8 +236,15 @@ export default function VehiclesPage() {
       </div>
 
       {/* Vehicles Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        <AnimatePresence>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-pulse">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-48 bg-slate-200 rounded-2xl"></div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <AnimatePresence>
           {filteredVehicles.map((vehicle) => {
             const usagePct = vehicle.creditLimit > 0 ? (vehicle.usedCredit / vehicle.creditLimit) * 100 : 0;
             
@@ -312,6 +334,7 @@ export default function VehiclesPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Onboard Vehicle Modal */}
       <AnimatePresence>

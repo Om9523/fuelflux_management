@@ -51,6 +51,11 @@ export interface UdhaarCreatePayload {
   customer_id: number;
   amount: number;
   description?: string | null;
+  remarks?: string | null;
+  fuel_type?: string | null;
+  volume?: number | null;
+  udhaar_type?: string;
+  pump_id?: number;
   due_date?: string | null;
 }
 
@@ -62,6 +67,21 @@ export interface UdhaarResponseData {
   due_date: string | null;
   status: string;
   created_at: string;
+}
+
+export interface UdhaarHistoryItem {
+  id: number;
+  customer_id: number;
+  customer_name: string;
+  vehicle_plate: string;
+  pump_id: number;
+  amount: number;
+  volume: number | null;
+  fuel_type: string | null;
+  udhaar_type: string;
+  status: string;
+  remarks: string | null;
+  used_at: string | null;
 }
 
 export interface OutstandingResponse {
@@ -111,12 +131,10 @@ export const crmService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err?.detail || `Failed to create customer: ${res.statusText}`);
     }
-
     return res.json();
   },
 
@@ -144,14 +162,56 @@ export const crmService = {
     const res = await fetch(`${API_URL}/udhaar/add`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        customer_id: data.customer_id,
+        pump_id: data.pump_id,
+        amount: data.amount,
+        remarks: data.description || data.remarks || 'Fuel purchase',
+        fuel_type: data.fuel_type || null,
+        volume: data.volume || null,
+        udhaar_type: data.udhaar_type || 'manual',
+      }),
     });
-
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err?.detail || `Failed to add udhaar: ${res.statusText}`);
     }
+    return res.json();
+  },
 
+  async deleteUdhaar(udhaarId: number): Promise<void> {
+    const res = await fetch(`${API_URL}/udhaar/${udhaarId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.detail || `Failed to delete udhaar: ${res.statusText}`);
+    }
+  },
+
+  async getUdhaarHistory(customerId?: number): Promise<UdhaarHistoryItem[]> {
+    const params = customerId ? `?customer_id=${customerId}` : '';
+    const res = await fetch(`${API_URL}/udhaar/history${params}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.detail || `Failed to fetch udhaar history: ${res.statusText}`);
+    }
+    return res.json();
+  },
+
+  async settleOutstanding(customerId: number, amount: number): Promise<any> {
+    const res = await fetch(`${API_URL}/udhaar/settle/${customerId}?amount=${amount}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.detail || `Failed to settle outstanding: ${res.statusText}`);
+    }
     return res.json();
   },
 

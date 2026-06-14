@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Notebook,
@@ -18,11 +18,17 @@ import {
   CreditCard,
   Ban,
   Coins,
+  Trash2,
+  History,
+  ChevronDown,
+  ChevronUp,
+  IndianRupee,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from '@/components/feedback/Toast';
 import { Button } from '@/components/ui/Button';
 import { usePumpStore } from '@/stores/pumps.store';
-import { crmService } from '@/services/crm.service';
+import { crmService, UdhaarHistoryItem } from '@/services/crm.service';
 
 export default function CRMPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'udhaar' | 'limits' | 'alerts' | 'history'>('all');
@@ -31,11 +37,19 @@ export default function CRMPage() {
   const [activeClient, setActiveClient] = useState<any | null>(null);
   const [customers, setCustomers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [udhaarFuelType, setUdhaarFuelType] = useState('');
+  const [udhaarVolume, setUdhaarVolume] = useState('');
 
-  // Udhaar transaction states
+  // Udhaar transaction states (drawer inline)
   const [udhaarAmount, setUdhaarAmount] = useState('');
   const [udhaarDesc, setUdhaarDesc] = useState('');
   const [isUdhaarSubmitting, setIsUdhaarSubmitting] = useState(false);
+
+  // Udhaar history states (drawer)
+  const [udhaarHistory, setUdhaarHistory] = useState<UdhaarHistoryItem[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Udhaar Modal states
   const [isRecordUdhaarModalOpen, setIsRecordUdhaarModalOpen] = useState(false);
@@ -44,41 +58,77 @@ export default function CRMPage() {
   const [modalUdhaarDesc, setModalUdhaarDesc] = useState('');
 
   const { selectedPump } = usePumpStore();
+  const [modalFuelType, setModalFuelType] = useState('');
+  const [modalVolume, setModalVolume] = useState('');
 
-  useEffect(() => {
+  // ─── Load CRM customers ──────────────────────────────────────────────────────
+  const loadCrmData = useCallback(async () => {
     if (!selectedPump) return;
 
-    const loadCrmData = async () => {
-      setIsLoading(true);
-      try {
-        const backendCustomers = await crmService.getCustomers(Number(selectedPump.id));
-        
-        // Map backend customers to frontend shape
-        const mapped = backendCustomers.map((c) => ({
-          id: `CUST-${c.id}`,
-          name: c.name,
-          type: c.is_fleet ? 'Fleet' : 'Individual',
-          phone: c.phone || '',
-          email: `${c.name.toLowerCase().replace(/ /g, '')}@fuelflux.com`,
-          creditLimit: `₹${c.credit_limit.toLocaleString('en-IN')}`,
-          creditUsed: `₹${c.outstanding_amount.toLocaleString('en-IN')}`,
-          paymentTerms: c.is_fleet ? '15 Days' : 'Cash/Direct',
-          risk: c.outstanding_amount > c.credit_limit * 0.8 ? 'high' : 'low',
-          vehicles: c.vehicle_plate ? [c.vehicle_plate] : [],
-        }));
+    setIsLoading(true);
 
-        setCustomers(mapped);
-      } catch (err: any) {
-        console.error('Failed to load CRM data:', err);
-        toast.error(err.message || 'Failed to load CRM data from backend.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    try {
+      const backendCustomers = await crmService.getCustomers(
+        Number(selectedPump.id)
+      );
 
-    loadCrmData();
+      const mapped = backendCustomers.map((c) => ({
+        id: `CUST-${c.id}`,
+        dbId: c.id,
+        name: c.name,
+        type: c.is_fleet ? 'Fleet' : 'Individual',
+        phone: c.phone || '',
+        email: `${c.name.toLowerCase().replace(/ /g, '')}@fuelflux.com`,
+        creditLimit: `₹${c.credit_limit.toLocaleString('en-IN')}`,
+        creditLimitRaw: c.credit_limit,
+        creditUsed: `₹${c.outstanding_amount.toLocaleString('en-IN')}`,
+        creditUsedRaw: c.outstanding_amount,
+        paymentTerms: c.is_fleet ? '15 Days' : 'Cash/Direct',
+        risk:
+          c.outstanding_amount > c.credit_limit * 0.8
+            ? 'high'
+            : 'low',
+        vehicles: c.vehicle_plate ? [c.vehicle_plate] : [],
+      }));
+
+      setCustomers(mapped);
+    } catch (err: any) {
+      console.error('Failed to load CRM data:', err);
+      toast.error(err.message || 'Failed to load CRM data.');
+    } finally {
+      setIsLoading(false);
+    }
   }, [selectedPump]);
 
+  useEffect(() => {
+    loadCrmData();
+  }, [loadCrmData]);
+
+  // ─── Load udhaar history when drawer opens ───────────────────────────────────
+  const loadUdhaarHistory = useCallback(async (customerId: number) => {
+    setIsHistoryLoading(true);
+    try {
+      const history = await crmService.getUdhaarHistory(customerId);
+      setUdhaarHistory(history);
+    } catch (err: any) {
+      console.error('Failed to load udhaar history:', err);
+      toast.error('Could not load udhaar history.');
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, []);
+
+  // When activeClient changes, reset history panel and reload
+  useEffect(() => {
+    if (!activeClient) {
+      setUdhaarHistory([]);
+      setIsHistoryOpen(false);
+      return;
+    }
+    loadUdhaarHistory(activeClient.dbId);
+  }, [activeClient, loadUdhaarHistory]);
+
+  // ─── New customer form state ─────────────────────────────────────────────────
   const [newCust, setNewCust] = useState({
     name: '',
     phone: '',
@@ -93,22 +143,19 @@ export default function CRMPage() {
     setNewCust((prev) => ({ ...prev, [field]: val }));
   };
 
+  // ─── Add customer ────────────────────────────────────────────────────────────
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCust.name || !newCust.phone) {
       toast.error('Customer Name and Phone are required.');
       return;
     }
-
     if (!selectedPump) {
       toast.error('Please select an active pump first.');
       return;
     }
 
-    // Parse credit limit
     const rawLimit = parseFloat(newCust.creditLimit.replace(/[^\d.]/g, '')) || 0;
-
-    // Get vehicle plate
     const vehiclePlate = newCust.vehicles ? newCust.vehicles.split(',')[0]?.trim() : '';
     if (!vehiclePlate) {
       toast.error('At least one vehicle registration plate is required.');
@@ -129,12 +176,15 @@ export default function CRMPage() {
 
       const mappedNew = {
         id: `CUST-${newCustomer.id}`,
+        dbId: newCustomer.id,
         name: newCustomer.name,
         type: newCustomer.is_fleet ? 'Fleet' : 'Individual',
         phone: newCustomer.phone || '',
         email: `${newCustomer.name.toLowerCase().replace(/ /g, '')}@fuelflux.com`,
         creditLimit: `₹${newCustomer.credit_limit.toLocaleString('en-IN')}`,
+        creditLimitRaw: newCustomer.credit_limit,
         creditUsed: `₹${newCustomer.outstanding_amount.toLocaleString('en-IN')}`,
+        creditUsedRaw: newCustomer.outstanding_amount,
         paymentTerms: newCustomer.is_fleet ? '15 Days' : 'Cash/Direct',
         risk: newCustomer.outstanding_amount > newCustomer.credit_limit * 0.8 ? 'high' : 'low',
         vehicles: newCustomer.vehicle_plate ? [newCustomer.vehicle_plate] : [],
@@ -143,15 +193,7 @@ export default function CRMPage() {
       setCustomers((prev) => [...prev, mappedNew]);
       toast.success(`Registered Customer Profile: ${newCust.name}`);
       setIsAddModalOpen(false);
-      setNewCust({
-        name: '',
-        phone: '',
-        email: '',
-        type: 'Company',
-        creditLimit: '₹1,00,000',
-        paymentTerms: '15 Days',
-        vehicles: '',
-      });
+      setNewCust({ name: '', phone: '', email: '', type: 'Company', creditLimit: '₹1,00,000', paymentTerms: '15 Days', vehicles: '' });
     } catch (err: any) {
       toast.error(err.message || 'Failed to register customer on backend.');
     } finally {
@@ -159,62 +201,62 @@ export default function CRMPage() {
     }
   };
 
+  // ─── Helper: update customer outstanding in state ────────────────────────────
+  const updateCustomerOutstanding = (clientId: string, deltaAmount: number) => {
+    setCustomers((prev) =>
+      prev.map((c) => {
+        if (c.id !== clientId) return c;
+        const newUsed = Math.max(0, c.creditUsedRaw + deltaAmount);
+        return {
+          ...c,
+          creditUsedRaw: newUsed,
+          creditUsed: `₹${newUsed.toLocaleString('en-IN')}`,
+          risk: newUsed > c.creditLimitRaw * 0.8 ? 'high' : 'low',
+        };
+      })
+    );
+    if (activeClient && activeClient.id === clientId) {
+      const newUsed = Math.max(0, activeClient.creditUsedRaw + deltaAmount);
+      setActiveClient((prev: any) => ({
+        ...prev,
+        creditUsedRaw: newUsed,
+        creditUsed: `₹${newUsed.toLocaleString('en-IN')}`,
+        risk: newUsed > prev.creditLimitRaw * 0.8 ? 'high' : 'low',
+      }));
+    }
+  };
+
+  // ─── Drawer: Add udhaar ──────────────────────────────────────────────────────
   const handleRecordUdhaar = async () => {
-    if (!activeClient) return;
+    if (!activeClient || !selectedPump) return;
     const amountVal = parseFloat(udhaarAmount.replace(/[^\d.]/g, ''));
     if (isNaN(amountVal) || amountVal <= 0) {
       toast.error('Please enter a valid positive amount.');
       return;
     }
 
-    const customerDbId = Number(activeClient.id.replace('CUST-', ''));
-    if (isNaN(customerDbId)) {
-      toast.error('Invalid customer ID.');
-      return;
-    }
-
     try {
       setIsUdhaarSubmitting(true);
       await crmService.addUdhaar({
-        customer_id: customerDbId,
+        customer_id: activeClient.dbId,
         amount: amountVal,
         description: udhaarDesc || 'Fuel purchase',
-        due_date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 days default due date
+        pump_id: Number(selectedPump.id),
+        udhaar_type: 'manual',
+        fuel_type: udhaarFuelType || null,
+        volume: udhaarVolume ? parseFloat(udhaarVolume) : null,
       });
 
-      toast.success(`Recorded Udhaar transaction of ₹${amountVal.toLocaleString('en-IN')} for ${activeClient.name}`);
-      
-      // Update outstanding amount on the UI
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === activeClient.id) {
-            const currentUsedRaw = parseFloat(c.creditUsed.replace(/[^\d.]/g, '')) || 0;
-            const updatedUsed = currentUsedRaw + amountVal;
-            const creditLimitRaw = parseFloat(c.creditLimit.replace(/[^\d.]/g, '')) || 0;
-            
-            return {
-              ...c,
-              creditUsed: `₹${updatedUsed.toLocaleString('en-IN')}`,
-              risk: updatedUsed > creditLimitRaw * 0.8 ? 'high' : 'low',
-            };
-          }
-          return c;
-        })
-      );
+      toast.success(`Udhaar ₹${amountVal.toLocaleString('en-IN')} recorded for ${activeClient.name}`);
+      updateCustomerOutstanding(activeClient.id, amountVal);
 
-      // Update active client detail drawer view
-      const activeUsedRaw = parseFloat(activeClient.creditUsed.replace(/[^\d.]/g, '')) || 0;
-      const updatedActiveUsed = activeUsedRaw + amountVal;
-      const activeLimitRaw = parseFloat(activeClient.creditLimit.replace(/[^\d.]/g, '')) || 0;
-      setActiveClient({
-        ...activeClient,
-        creditUsed: `₹${updatedActiveUsed.toLocaleString('en-IN')}`,
-        risk: updatedActiveUsed > activeLimitRaw * 0.8 ? 'high' : 'low',
-      });
+      // Reload history
+      await loadUdhaarHistory(activeClient.dbId);
 
-      // Clear input fields
       setUdhaarAmount('');
       setUdhaarDesc('');
+      setUdhaarFuelType('');
+      setUdhaarVolume('');
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Failed to record udhaar on backend.');
@@ -223,22 +265,42 @@ export default function CRMPage() {
     }
   };
 
+  // ─── Drawer: Delete udhaar ───────────────────────────────────────────────────
+  const handleDeleteUdhaar = async (udhaarId: number, amount: number) => {
+    if (!activeClient) return;
+    try {
+      setDeletingId(udhaarId);
+      await crmService.deleteUdhaar(udhaarId);
+
+      // Remove from history list
+      setUdhaarHistory((prev) => prev.filter((u) => u.id !== udhaarId));
+
+      // Update outstanding in state
+      updateCustomerOutstanding(activeClient.id, -amount);
+
+      toast.success('Udhaar entry deleted successfully.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete udhaar entry.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // ─── Modal: Add udhaar ───────────────────────────────────────────────────────
   const handleModalUdhaarSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomerId) {
       toast.error('Please select a customer.');
       return;
     }
+    if (!selectedPump) {
+      toast.error('Please select an active pump first.');
+      return;
+    }
 
     const amountVal = parseFloat(modalUdhaarAmount.replace(/[^\d.]/g, ''));
     if (isNaN(amountVal) || amountVal <= 0) {
       toast.error('Please enter a valid positive amount.');
-      return;
-    }
-
-    const customerDbId = Number(selectedCustomerId.replace('CUST-', ''));
-    if (isNaN(customerDbId)) {
-      toast.error('Invalid customer ID.');
       return;
     }
 
@@ -251,49 +313,24 @@ export default function CRMPage() {
     try {
       setIsUdhaarSubmitting(true);
       await crmService.addUdhaar({
-        customer_id: customerDbId,
+        customer_id: targetCustomer.dbId,
         amount: amountVal,
         description: modalUdhaarDesc || 'Fuel purchase',
-        due_date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+        pump_id: Number(selectedPump.id),           // ← pump_id fixed
+        udhaar_type: 'manual',
+        fuel_type: modalFuelType || null,
+        volume: modalVolume ? parseFloat(modalVolume) : null,
       });
 
-      toast.success(`Recorded Udhaar transaction of ₹${amountVal.toLocaleString('en-IN')} for ${targetCustomer.name}`);
+      toast.success(`Udhaar ₹${amountVal.toLocaleString('en-IN')} recorded for ${targetCustomer.name}`);
+      updateCustomerOutstanding(selectedCustomerId, amountVal);
 
-      // Update outstanding amount on the UI list
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === selectedCustomerId) {
-            const currentUsedRaw = parseFloat(c.creditUsed.replace(/[^\d.]/g, '')) || 0;
-            const updatedUsed = currentUsedRaw + amountVal;
-            const creditLimitRaw = parseFloat(c.creditLimit.replace(/[^\d.]/g, '')) || 0;
-
-            return {
-              ...c,
-              creditUsed: `₹${updatedUsed.toLocaleString('en-IN')}`,
-              risk: updatedUsed > creditLimitRaw * 0.8 ? 'high' : 'low',
-            };
-          }
-          return c;
-        })
-      );
-
-      // If active client detail drawer is open for this client, update it too
-      if (activeClient && activeClient.id === selectedCustomerId) {
-        const activeUsedRaw = parseFloat(activeClient.creditUsed.replace(/[^\d.]/g, '')) || 0;
-        const updatedActiveUsed = activeUsedRaw + amountVal;
-        const activeLimitRaw = parseFloat(activeClient.creditLimit.replace(/[^\d.]/g, '')) || 0;
-        setActiveClient({
-          ...activeClient,
-          creditUsed: `₹${updatedActiveUsed.toLocaleString('en-IN')}`,
-          risk: updatedActiveUsed > activeLimitRaw * 0.8 ? 'high' : 'low',
-        });
-      }
-
-      // Close modal & reset fields
       setIsRecordUdhaarModalOpen(false);
       setSelectedCustomerId('');
       setModalUdhaarAmount('');
       setModalUdhaarDesc('');
+      setModalFuelType('');
+      setModalVolume('');
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Failed to record udhaar on backend.');
@@ -303,12 +340,12 @@ export default function CRMPage() {
   };
 
   const triggerWhatsappWarning = (client: any) => {
-    toast.success(`WhatsApp repayment reminder successfully dispatched to ${client.name} (${client.phone})!`);
+    toast.success(`WhatsApp reminder dispatched to ${client.name} (${client.phone})!`);
   };
 
   const generateCreditVoucher = (client: any) => {
     const voucherCode = 'VCH-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-    toast.success(`Issued credit voucher: ${voucherCode} for ${client.name}. Linked to vehicles: ${client.vehicles.join(', ')}`);
+    toast.success(`Issued credit voucher: ${voucherCode} for ${client.name}. Linked to: ${client.vehicles.join(', ')}`);
   };
 
   const filteredCustomers = customers.filter(
@@ -333,13 +370,23 @@ export default function CRMPage() {
 
         <div className="flex gap-2 w-full sm:w-auto">
           <button
+            onClick={loadCrmData}
+            disabled={isLoading}
+            title="Refresh customer list"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-500 transition-all outline-none cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+            />
+          </button>
+          <button
             onClick={() => setIsRecordUdhaarModalOpen(true)}
             className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 px-4.5 py-2.5 text-xs font-bold text-primary transition-all outline-none cursor-pointer"
           >
             <Coins className="h-4 w-4 shrink-0 text-primary" />
             Record Udhaar
           </button>
-          
+
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-xl bg-primary hover:bg-primary-hover px-4.5 py-2.5 text-xs font-bold text-white shadow-md shadow-primary/20 transition-all outline-none cursor-pointer"
@@ -379,7 +426,7 @@ export default function CRMPage() {
             <Search className="absolute left-3.5 h-4.5 w-4.5 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search profiles, GST numbers..."
+              placeholder="Search profiles, vehicle plates..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-11 pr-4 py-2.5 text-xs font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10"
@@ -420,7 +467,7 @@ export default function CRMPage() {
                 ) : (
                   filteredCustomers
                     .filter((c) => {
-                      if (activeTab === 'udhaar') return c.creditUsed !== '₹0' && c.creditUsed !== '₹0.00' && c.creditUsed !== '₹0.0';
+                      if (activeTab === 'udhaar') return c.creditUsedRaw > 0;
                       if (activeTab === 'alerts') return c.risk === 'high';
                       return true;
                     })
@@ -440,7 +487,7 @@ export default function CRMPage() {
                             {c.type}
                           </span>
                         </td>
-                        <td className={`p-4 font-extrabold ${c.creditUsed !== '₹0' && c.creditUsed !== '₹0.00' && c.creditUsed !== '₹0.0' ? 'text-rose-500 font-mono' : 'text-slate-600'}`}>
+                        <td className={`p-4 font-extrabold ${c.creditUsedRaw > 0 ? 'text-rose-500 font-mono' : 'text-slate-600'}`}>
                           {c.creditUsed}
                         </td>
                         <td className="p-4 font-bold text-slate-700 font-mono">{c.creditLimit}</td>
@@ -475,8 +522,9 @@ export default function CRMPage() {
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={() => setActiveClient(null)} />
 
-          <div className="relative w-full max-w-md bg-white h-full shadow-2xl p-6 sm:p-8 flex flex-col justify-between overflow-y-auto border-l border-slate-200 text-left z-50">
-            <div className="flex flex-col gap-6">
+          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col border-l border-slate-200 z-50">
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto p-6 sm:p-8 flex flex-col gap-6">
               {/* Header */}
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-2">
@@ -493,12 +541,12 @@ export default function CRMPage() {
 
               {/* Client Profile overview */}
               <div className="flex items-center gap-4 bg-slate-50 border border-slate-100 p-4 rounded-2xl shadow-xs">
-                <div className="h-12 w-12 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center font-extrabold text-primary text-lg">
+                <div className="h-12 w-12 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center font-extrabold text-primary text-lg shrink-0">
                   {activeClient.name.charAt(0)}
                 </div>
-                <div className="flex flex-col">
+                <div className="flex flex-col min-w-0">
                   <span className="text-sm font-extrabold text-text-primary">{activeClient.name}</span>
-                  <span className="text-xs text-text-secondary mt-0.5">{activeClient.email} • {activeClient.phone}</span>
+                  <span className="text-xs text-text-secondary mt-0.5 truncate">{activeClient.email} • {activeClient.phone}</span>
                   <span className="text-[10px] text-slate-400 font-mono tracking-tight mt-1">{activeClient.id}</span>
                 </div>
               </div>
@@ -512,29 +560,32 @@ export default function CRMPage() {
                     <span className="font-bold text-text-primary font-mono text-sm">{activeClient.creditLimit}</span>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[9px] font-bold text-text-secondary uppercase">Credit Used (Outstanding)</span>
-                    <span className="font-bold text-rose-500 font-mono text-sm">{activeClient.creditUsed}</span>
+                    <span className="text-[9px] font-bold text-text-secondary uppercase">Outstanding Udhaar</span>
+                    <span className={`font-bold font-mono text-sm ${activeClient.creditUsedRaw > 0 ? 'text-rose-500' : 'text-slate-600'}`}>
+                      {activeClient.creditUsed}
+                    </span>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[9px] font-bold text-text-secondary uppercase">Credit terms</span>
+                    <span className="text-[9px] font-bold text-text-secondary uppercase">Credit Terms</span>
                     <span className="font-bold text-text-primary">{activeClient.paymentTerms}</span>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[9px] font-bold text-text-secondary uppercase">Linked Fleet Vehicles</span>
+                    <span className="text-[9px] font-bold text-text-secondary uppercase">Linked Vehicles</span>
                     <span className="font-bold text-slate-600 font-mono break-all">{activeClient.vehicles.join(', ')}</span>
                   </div>
                 </div>
               </div>
 
               {/* Record Udhaar Section */}
-              <div className="flex flex-col gap-3 text-xs border-t border-slate-100 pt-4 mt-2">
-                <h4 className="font-extrabold text-text-primary uppercase tracking-wider pb-1 flex items-center gap-1.5 flex-row">
+              <div className="flex flex-col gap-3 text-xs border-t border-slate-100 pt-4">
+                <h4 className="font-extrabold text-text-primary uppercase tracking-wider pb-1 flex items-center gap-1.5">
                   <Coins className="h-4 w-4 text-orange-500" />
                   Record Udhaar Transaction
                 </h4>
+
+                {/* Row 1 — Amount + Fuel Type + Volume */}
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -543,34 +594,148 @@ export default function CRMPage() {
                     onChange={(e) => setUdhaarAmount(e.target.value)}
                     className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-mono"
                   />
+                  <select
+                    value={udhaarFuelType}
+                    onChange={(e) => setUdhaarFuelType(e.target.value)}
+                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+                  >
+                    <option value="">Fuel Type</option>
+                    <option value="Diesel">Diesel</option>
+                    <option value="Petrol">Petrol</option>
+                    <option value="CNG">CNG</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Litres (L)"
+                    value={udhaarVolume}
+                    onChange={(e) => setUdhaarVolume(e.target.value)}
+                    className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-mono"
+                  />
+                </div>
+
+                {/* Row 2 — Note + Submit */}
+                <div className="flex gap-2">
                   <input
                     type="text"
                     placeholder="Note (e.g. Fuel purchase)"
                     value={udhaarDesc}
                     onChange={(e) => setUdhaarDesc(e.target.value)}
-                    className="flex-[2] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
                   />
                   <button
                     onClick={handleRecordUdhaar}
                     disabled={isUdhaarSubmitting}
-                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow-sm outline-none transition-all cursor-pointer disabled:bg-slate-300"
+                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-xl shadow-sm outline-none transition-all cursor-pointer disabled:bg-slate-300 shrink-0"
                   >
-                    Add
+                    {isUdhaarSubmitting ? (
+                      <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : 'Add'}
                   </button>
                 </div>
               </div>
+              {/* ── Udhaar History Collapsible ─────────────────────────────────── */}
+              <div className="flex flex-col gap-0 text-xs border border-slate-100 rounded-2xl overflow-hidden">
+                <button
+                  onClick={() => setIsHistoryOpen((prev) => !prev)}
+                  className="flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer outline-none"
+                >
+                  <div className="flex items-center gap-2 font-extrabold text-text-primary uppercase tracking-wider text-[10px]">
+                    <History className="h-3.5 w-3.5 text-slate-500" />
+                    Udhaar History
+                    {udhaarHistory.length > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-md font-bold text-[9px]">
+                        {udhaarHistory.length}
+                      </span>
+                    )}
+                  </div>
+                  {isHistoryOpen ? (
+                    <ChevronUp className="h-4 w-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {isHistoryOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="flex flex-col divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                        {isHistoryLoading ? (
+                          <div className="flex items-center justify-center gap-2 p-6 text-slate-400 font-bold text-xs">
+                            <div className="h-3.5 w-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            Loading history...
+                          </div>
+                        ) : udhaarHistory.length === 0 ? (
+                          <div className="p-6 text-center text-slate-400 font-semibold text-xs">
+                            No udhaar transactions yet.
+                          </div>
+                        ) : (
+                          udhaarHistory.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors group"
+                            >
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <IndianRupee className="h-3 w-3 text-rose-400 shrink-0" />
+                                  <span className="font-mono font-extrabold text-rose-500 text-xs">
+                                    {item.amount.toLocaleString('en-IN')}
+                                  </span>
+                                  {item.fuel_type && (
+                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-bold uppercase">
+                                      {item.fuel_type}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-400 truncate">
+                                  {item.remarks || 'Fuel purchase'} •{' '}
+                                  {item.used_at
+                                    ? new Date(item.used_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                    : '—'}
+                                </span>
+                              </div>
+
+                              {/* Delete button */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteUdhaar(item.id, item.amount);
+                                }}
+                                disabled={deletingId === item.id}
+                                className="ml-3 p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all outline-none cursor-pointer shrink-0 disabled:opacity-50"
+                                title="Delete udhaar entry"
+                              >
+                                {deletingId === item.id ? (
+                                  <div className="h-3.5 w-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
-            {/* Actions group */}
-            <div className="flex flex-col gap-2 pt-6 border-t border-slate-100">
+            {/* Fixed bottom action buttons */}
+            <div className="flex flex-col gap-2 p-6 sm:px-8 border-t border-slate-100 bg-white shrink-0">
               <button
-                onClick={() => triggerWarning(activeClient)}
+                onClick={() => triggerWhatsappWarning(activeClient)}
                 className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all outline-none cursor-pointer"
               >
                 <MessageSquare className="h-4.5 w-4.5" />
                 Trigger WhatsApp Reminder
               </button>
-              
+
               <button
                 onClick={() => generateCreditVoucher(activeClient)}
                 className="w-full py-3 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-primary/20 transition-all outline-none cursor-pointer"
@@ -599,14 +764,13 @@ export default function CRMPage() {
         {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={() => setIsAddModalOpen(false)} />
-            
+
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 z-10 max-h-[85vh] overflow-y-auto"
             >
-              {/* Header */}
               <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-6">
                 <h3 className="text-base font-extrabold text-text-primary flex items-center gap-2">
                   <Plus className="h-5 w-5 text-primary" /> Onboard Credit Customer
@@ -619,7 +783,6 @@ export default function CRMPage() {
                 </button>
               </div>
 
-              {/* Form */}
               <form onSubmit={handleFormSubmit} className="flex flex-col gap-5 text-left text-xs">
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1">
@@ -700,22 +863,10 @@ export default function CRMPage() {
                 </div>
 
                 <div className="flex gap-3 mt-4 shrink-0 border-t border-slate-100 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    onClick={() => setIsAddModalOpen(false)}
-                    className="flex-1 font-bold"
-                  >
+                  <Button type="button" variant="outline" size="lg" onClick={() => setIsAddModalOpen(false)} className="flex-1 font-bold">
                     Cancel
                   </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="lg"
-                    isLoading={isLoading}
-                    className="flex-1 font-bold"
-                  >
+                  <Button type="submit" variant="primary" size="lg" isLoading={isLoading} className="flex-1 font-bold">
                     Register Account
                   </Button>
                 </div>
@@ -730,17 +881,16 @@ export default function CRMPage() {
         {isRecordUdhaarModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={() => setIsRecordUdhaarModalOpen(false)} />
-            
+
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               className="relative w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 z-10 max-h-[85vh] overflow-y-auto"
             >
-              {/* Header */}
               <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-6">
                 <h3 className="text-base font-extrabold text-text-primary flex items-center gap-2 font-plus-jakarta">
-                  <Coins className="h-5 w-5 text-orange-500 font-plus-jakarta" /> Record Udhaar Transaction
+                  <Coins className="h-5 w-5 text-orange-500" /> Record Udhaar Transaction
                 </h3>
                 <button
                   onClick={() => setIsRecordUdhaarModalOpen(false)}
@@ -750,14 +900,13 @@ export default function CRMPage() {
                 </button>
               </div>
 
-              {/* Form */}
               <form onSubmit={handleModalUdhaarSubmit} className="flex flex-col gap-5 text-left text-xs">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-text-primary">Select Customer</label>
                   <select
                     value={selectedCustomerId}
                     onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all cursor-pointer font-bold font-plus-jakarta"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all cursor-pointer font-bold"
                   >
                     <option value="">-- Select Customer --</option>
                     {customers.map((c) => (
@@ -779,6 +928,36 @@ export default function CRMPage() {
                     className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-mono font-bold"
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-text-primary">Fuel Type</label>
+                    <select
+                      value={modalFuelType}
+                      onChange={(e) => setModalFuelType(e.target.value)}
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all cursor-pointer"
+                    >
+                      <option value="">Select Fuel</option>
+                      <option value="Diesel">Diesel</option>
+                      <option value="Petrol">Petrol</option>
+                      <option value="CNG">CNG</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-text-primary">Volume (Litres)</label>
+                    <input
+                      type="text"
+                      value={modalVolume}
+                      onChange={(e) => setModalVolume(e.target.value)}
+                      placeholder="e.g. 50"
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-text-primary outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-text-primary">Description / Note</label>
+                  {/* existing description input */}
+                </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-text-primary">Description / Note</label>
@@ -792,22 +971,10 @@ export default function CRMPage() {
                 </div>
 
                 <div className="flex gap-3 mt-4 shrink-0 border-t border-slate-100 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    onClick={() => setIsRecordUdhaarModalOpen(false)}
-                    className="flex-1 font-bold"
-                  >
+                  <Button type="button" variant="outline" size="lg" onClick={() => setIsRecordUdhaarModalOpen(false)} className="flex-1 font-bold">
                     Cancel
                   </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="lg"
-                    isLoading={isUdhaarSubmitting}
-                    className="flex-1 font-bold"
-                  >
+                  <Button type="submit" variant="primary" size="lg" isLoading={isUdhaarSubmitting} className="flex-1 font-bold">
                     Add Udhaar
                   </Button>
                 </div>
@@ -818,9 +985,4 @@ export default function CRMPage() {
       </AnimatePresence>
     </div>
   );
-}
-
-// Simple legacy trigger helper wrapper for drawer clicks
-function triggerWarning(client: any) {
-  toast.success(`WhatsApp repayment reminder successfully dispatched to ${client.name} (${client.phone})!`);
 }

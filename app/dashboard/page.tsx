@@ -22,7 +22,13 @@ import {
 import { usePumpStore } from '@/stores/pumps.store';
 import { useNotificationStore } from '@/stores/notification.store';
 import { useAuthStore } from '@/stores/auth.store';
-import { fetchDashboardOverview, DashboardOverview } from '@/services/dashboard.service';
+import {
+  fetchDashboardOverview,
+  DashboardOverview,
+  WeeklyTrendPoint,
+  TopAttendant,
+  ForecourtActivity,
+} from '@/services/dashboard.service';
 import { toast } from '@/components/feedback/Toast';
 
 // ─── Stat Card Component ─────────────────────────────────────────────────────
@@ -193,19 +199,13 @@ export default function DashboardHome() {
   const activeAttendants = overview?.stats?.active_attendants ?? 0;
   const todaySales = overview?.stats?.today_sales_count ?? 0;
 
-  // Simulated forecourt activities — will be replaced by live WebSocket later
-  const forecourtActivities = [
-    { id: 1, pumpNo: 2, fuel: 'Petrol', amount: '12.4 L', rate: '45L/min', status: 'dispensing' },
-    { id: 2, pumpNo: 4, fuel: 'Diesel', amount: '122.5 L', rate: '70L/min', status: 'dispensing' },
-    { id: 3, pumpNo: 1, fuel: 'Petrol', amount: '0.0 L', rate: '0L/min', status: 'idle' },
-    { id: 4, pumpNo: 3, fuel: 'CNG', amount: '8.2 Kg', rate: '12Kg/min', status: 'complete' },
-  ];
+  // ── Live data from API ──────────────────────────────────────────────────
+  const forecourtActivities: ForecourtActivity[] = overview?.forecourt_activities ?? [];
+  const topAttendants: TopAttendant[] = overview?.top_attendants ?? [];
+  const weeklyTrend: WeeklyTrendPoint[] = overview?.weekly_trend ?? [];
 
-  const topAttendants = [
-    { name: 'K. Rakesh', sold: '4,820 L', amount: '₹4,91,640', performance: '102% of quota' },
-    { name: 'G. Suresh', sold: '3,910 L', amount: '₹3,98,820', performance: '98% of quota' },
-    { name: 'M. Vikram', sold: '3,240 L', amount: '₹3,30,480', performance: '94% of quota' },
-  ];
+  // Compute max revenue across the week for normalising bar heights
+  const maxWeeklyRevenue = Math.max(...weeklyTrend.map((d) => d.revenue), 1);
 
   // ── Main Render ───────────────────────────────────────────────────────────
 
@@ -326,29 +326,48 @@ export default function DashboardHome() {
             <span className="text-[10px] font-bold text-slate-400 uppercase">MON – SUN</span>
           </div>
 
-          <div className="w-full h-64 relative mt-2 flex flex-col justify-end">
-            <svg className="w-full h-48" viewBox="0 0 100 30" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="dashboard-gradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f97316" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M0 25 C15 22, 30 28, 45 14 C60 8, 75 16, 90 6 L100 4 L100 30 L0 30 Z"
-                fill="url(#dashboard-gradient)"
-              />
-              <path
-                d="M0 25 C15 22, 30 28, 45 14 C60 8, 75 16, 90 6 L100 4"
-                fill="none"
-                stroke="#f97316"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-2 px-1 border-t border-slate-50 pt-2 font-mono">
-              <span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span>
-            </div>
+          <div className="w-full mt-2 flex flex-col gap-3">
+            {statsLoading ? (
+              <div className="h-48 bg-slate-50 rounded-xl animate-pulse" />
+            ) : weeklyTrend.length === 0 ? (
+              <div className="h-48 flex items-center justify-center text-xs text-slate-400 font-semibold">
+                No sales data for this week yet.
+              </div>
+            ) : (
+              <>
+                {/* Bar chart */}
+                <div className="flex items-end justify-between gap-2 h-44 px-1">
+                  {weeklyTrend.map((d) => {
+                    const barPct = maxWeeklyRevenue > 0 ? (d.revenue / maxWeeklyRevenue) * 100 : 0;
+                    const isToday = d.day === new Date().toLocaleDateString('en-US', { weekday: 'short' });
+                    return (
+                      <div key={d.day} className="flex flex-col items-center gap-1 flex-1 group">
+                        <span className="text-[9px] font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity font-mono">
+                          ₹{d.revenue > 0 ? (d.revenue / 1000).toFixed(1) + 'K' : '0'}
+                        </span>
+                        <div
+                          className={`w-full rounded-t-lg transition-all ${
+                            isToday
+                              ? 'bg-orange-500 shadow-sm shadow-orange-200'
+                              : d.revenue > 0
+                              ? 'bg-orange-200 hover:bg-orange-400'
+                              : 'bg-slate-100'
+                          }`}
+                          style={{ height: `${Math.max(barPct, d.revenue > 0 ? 4 : 2)}%` }}
+                        />
+                        <span className={`text-[9px] font-bold font-mono ${
+                          isToday ? 'text-orange-500' : 'text-slate-400'
+                        }`}>{d.day.toUpperCase()}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400 font-semibold border-t border-slate-50 pt-2 px-1">
+                  <span>{weeklyTrend.reduce((s, d) => s + d.count, 0)} transactions this week</span>
+                  <span>₹{weeklyTrend.reduce((s, d) => s + d.revenue, 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} total</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -362,37 +381,38 @@ export default function DashboardHome() {
             <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
           </div>
 
-          <div className="flex flex-col gap-2.5">
-            {forecourtActivities.map((act) => (
-              <div key={act.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-600 shadow-sm shrink-0 text-[10px]">
-                    #{act.pumpNo}
-                  </div>
-                  <div className="flex flex-col text-left">
-                    <span className="font-bold text-text-primary">Dispenser {act.pumpNo}</span>
-                    <span className="text-[10px] text-slate-400 font-semibold">{act.fuel} Nozzle</span>
-                  </div>
-                </div>
-                <div className="flex flex-col text-right">
-                  {act.status === 'dispensing' ? (
-                    <>
-                      <span className="font-extrabold text-primary font-mono">{act.amount}</span>
-                      <span className="text-[9px] text-emerald-500 font-bold flex items-center gap-0.5 justify-end">
-                        <span className="flex h-1 w-1 rounded-full bg-emerald-500 animate-ping" /> {act.rate}
-                      </span>
-                    </>
-                  ) : act.status === 'complete' ? (
-                    <>
-                      <span className="font-bold text-slate-600 font-mono">{act.amount}</span>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase">Completed</span>
-                    </>
-                  ) : (
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Idle</span>
-                  )}
-                </div>
+          <div className="flex flex-col gap-2.5 max-h-72 overflow-y-auto">
+            {statsLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-14 bg-slate-50 rounded-xl animate-pulse" />
+              ))
+            ) : forecourtActivities.length === 0 ? (
+              <div className="text-center py-8 text-xs text-slate-400 font-semibold">
+                No recent transactions recorded.
               </div>
-            ))}
+            ) : (
+              forecourtActivities.map((act) => (
+                <div key={act.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-600 shadow-sm shrink-0 text-[10px]">
+                      #{act.nozzle_id}
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span className="font-bold text-text-primary">
+                        {act.vehicle_plate ?? `Nozzle #${act.nozzle_id}`}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-semibold">
+                        {new Date(act.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="font-extrabold text-primary font-mono">₹{act.amount.toLocaleString('en-IN')}</span>
+                    <span className="text-[9px] text-slate-500 font-semibold">{act.volume.toFixed(2)} L</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -405,23 +425,37 @@ export default function DashboardHome() {
             Top Attendant Collections
           </h3>
           <div className="flex flex-col gap-2.5">
-            {topAttendants.map((at, idx) => (
-              <div key={idx} className="flex justify-between items-center p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all text-xs">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-slate-100 text-text-secondary flex items-center justify-center font-bold text-[11px]">
-                    {idx + 1}
-                  </div>
-                  <div className="flex flex-col text-left">
-                    <span className="font-bold text-text-primary">{at.name}</span>
-                    <span className="text-[10px] text-slate-400 font-semibold">Attendant · Shift B</span>
-                  </div>
-                </div>
-                <div className="flex flex-col text-right">
-                  <span className="font-extrabold text-text-primary">{at.amount}</span>
-                  <span className="text-[9px] text-slate-500 font-semibold">{at.sold} ({at.performance})</span>
-                </div>
+            {statsLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-14 bg-slate-50 rounded-xl animate-pulse" />
+              ))
+            ) : topAttendants.length === 0 ? (
+              <div className="text-center py-8 text-xs text-slate-400 font-semibold">
+                No attendant sales recorded this week.
               </div>
-            ))}
+            ) : (
+              topAttendants.map((at, idx) => (
+                <div key={at.id} className="flex justify-between items-center p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-[11px] ${
+                      idx === 0 ? 'bg-amber-100 text-amber-600' :
+                      idx === 1 ? 'bg-slate-100 text-slate-600' :
+                      'bg-orange-50 text-orange-400'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span className="font-bold text-text-primary">{at.name}</span>
+                      <span className="text-[10px] text-slate-400 font-semibold">Attendant · {at.sold_liters.toFixed(1)} L this week</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="font-extrabold text-text-primary">₹{at.total_amount.toLocaleString('en-IN')}</span>
+                    <span className="text-[9px] text-slate-500 font-semibold">{at.sold_liters.toFixed(1)} L sold</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
