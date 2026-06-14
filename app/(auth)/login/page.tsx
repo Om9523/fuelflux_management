@@ -66,8 +66,8 @@ export default function LoginPage() {
           pump_owner: '/dashboard',
           logistic:   '/logistic/dashboard',
           investor:   '/investor',
-          admin:      '/dashboard',
-          employee:   '/dashboard',
+          admin:      '/admin',
+          employee:   '/employee',
         };
         const destination = roleDashboardMap[activeRole ?? ''] ?? '/dashboard';
         toast.info(`Welcome! Redirecting to your ${activeRole?.replace('_', ' ')} dashboard…`);
