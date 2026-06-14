@@ -1,4 +1,4 @@
-import { useFleetStore, QRVoucher } from '@/stores/fleet.store';
+﻿import { useFleetStore, QRVoucher } from '@/stores/fleet.store';
 
 export const vouchersService = {
   /**

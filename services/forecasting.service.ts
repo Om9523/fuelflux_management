@@ -1,4 +1,4 @@
-import { useInvestorStore, DemandForecast } from '@/stores/investor.store';
+﻿import { useInvestorStore, DemandForecast } from '@/stores/investor.store';
 
 export const forecastingService = {
   /**

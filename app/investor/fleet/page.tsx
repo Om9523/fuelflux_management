@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -72,9 +72,9 @@ export default function FleetAnalyticsPage() {
 
         <div className="bg-white border border-slate-200/60 rounded-2xl p-4.5 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">MTD B2B Consumption</p>
-          <h3 className="text-xl font-black text-slate-800 mt-1.5">₹{totalFleetSpend.toLocaleString()}</h3>
+          <h3 className="text-xl font-black text-slate-800 mt-1.5">Γé╣{totalFleetSpend.toLocaleString()}</h3>
           <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-2">
-            ▲ +6.8% MoM
+            Γû▓ +6.8% MoM
           </span>
         </div>
 
@@ -99,7 +99,7 @@ export default function FleetAnalyticsPage() {
                 <div className="flex justify-between text-xs font-bold text-slate-600">
                   <span>{f.name}</span>
                   <span className={f.creditUtilization > 90 ? 'text-rose-600 font-extrabold' : 'text-slate-500'}>
-                    ₹{f.monthlySpend.toLocaleString()} ({f.creditUtilization}%)
+                    Γé╣{f.monthlySpend.toLocaleString()} ({f.creditUtilization}%)
                   </span>
                 </div>
                 <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
@@ -221,9 +221,9 @@ export default function FleetAnalyticsPage() {
                   <tr key={idx} className="hover:bg-slate-50 transition-colors">
                     <td className="p-4 pl-6 font-black text-slate-800">{f.name}</td>
                     <td className="p-4 text-right text-slate-550">{f.activeVehicles}</td>
-                    <td className="p-4 text-right font-bold text-slate-800">₹{f.monthlySpend.toLocaleString()}</td>
-                    <td className="p-4 text-right text-slate-500">₹{limitAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                    <td className="p-4 text-right text-rose-600 font-bold">₹{outstanding.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td className="p-4 text-right font-bold text-slate-800">Γé╣{f.monthlySpend.toLocaleString()}</td>
+                    <td className="p-4 text-right text-slate-500">Γé╣{limitAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td className="p-4 text-right text-rose-600 font-bold">Γé╣{outstanding.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                     <td className="p-4 text-center font-mono text-orange-600 font-extrabold">{f.creditUtilization}%</td>
                     <td className="p-4 text-center pr-6">{riskBadgeStyle(f.riskRating) ? <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${riskBadgeStyle(f.riskRating)}`}>{f.riskRating}</span> : null}</td>
                   </tr>

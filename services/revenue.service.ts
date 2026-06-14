@@ -1,4 +1,4 @@
-import { useInvestorStore, HistoricalRevenue } from '@/stores/investor.store';
+﻿import { useInvestorStore, HistoricalRevenue } from '@/stores/investor.store';
 
 export const revenueService = {
   /**

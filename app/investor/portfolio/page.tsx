@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -53,8 +53,8 @@ export default function PortfolioPage() {
   const capitalGains = currentValuation - initialInvested;
 
   const mockExpansions = [
-    { name: 'Vizag Port Bypass Junction', cost: '₹12.0M', projectedRoi: '15.4%', risk: 'low' },
-    { name: 'Hyderabad Ringroad Plaza', cost: '₹18.5M', projectedRoi: '16.8%', risk: 'medium' },
+    { name: 'Vizag Port Bypass Junction', cost: 'Γé╣12.0M', projectedRoi: '15.4%', risk: 'low' },
+    { name: 'Hyderabad Ringroad Plaza', cost: 'Γé╣18.5M', projectedRoi: '16.8%', risk: 'medium' },
   ];
 
   return (
@@ -77,7 +77,7 @@ export default function PortfolioPage() {
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Initial Seed Capital</p>
             <h3 className="text-2xl font-black text-slate-800 mt-2">
-              ₹{initialInvested.toLocaleString()}
+              Γé╣{initialInvested.toLocaleString()}
             </h3>
           </div>
           <p className="text-[10px] text-slate-500 mt-3 font-semibold">Total capital deployed across all active station nodes</p>
@@ -87,11 +87,11 @@ export default function PortfolioPage() {
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Current Market Valuation</p>
             <h3 className="text-2xl font-black text-slate-800 mt-2">
-              ₹{currentValuation.toLocaleString()}
+              Γé╣{currentValuation.toLocaleString()}
             </h3>
           </div>
           <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-3">
-            ▲ +{(activePortfolio.roi).toFixed(1)}% ROI Yield
+            Γû▓ +{(activePortfolio.roi).toFixed(1)}% ROI Yield
           </span>
         </div>
 
@@ -99,7 +99,7 @@ export default function PortfolioPage() {
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Accrued Capital Gains</p>
             <h3 className="text-2xl font-black text-emerald-600 mt-2">
-              +₹{capitalGains.toLocaleString()}
+              +Γé╣{capitalGains.toLocaleString()}
             </h3>
           </div>
           <p className="text-[10px] text-slate-500 mt-3 font-semibold">Net valuation growth since deployment</p>
@@ -134,7 +134,7 @@ export default function PortfolioPage() {
                   </div>
 
                   <div className="border-t border-slate-100 pt-3 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
-                    <span>Revenue: ₹{(pump.revenue / 1000).toFixed(0)}k</span>
+                    <span>Revenue: Γé╣{(pump.revenue / 1000).toFixed(0)}k</span>
                     <span className="text-emerald-600">ROI: {pumpRoi}%</span>
                   </div>
                 </div>

@@ -1,4 +1,4 @@
-import { useInvestorStore, ComparativePump } from '@/stores/investor.store';
+﻿import { useInvestorStore, ComparativePump } from '@/stores/investor.store';
 
 export const portfolioService = {
   /**

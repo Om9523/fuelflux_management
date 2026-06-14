@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -111,7 +111,7 @@ export default function InvestorDashboard() {
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Asset Valuation</p>
             <h3 className="text-lg font-black text-slate-800 mt-1.5 truncate">
-              ₹{(activePortfolio.currentValue / 1000000).toFixed(2)}M
+              Γé╣{(activePortfolio.currentValue / 1000000).toFixed(2)}M
             </h3>
           </div>
           <div className="mt-3 flex items-center justify-between text-[10px] font-bold">
@@ -132,7 +132,7 @@ export default function InvestorDashboard() {
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Sales (MTD)</p>
             <h3 className="text-lg font-black text-slate-800 mt-1.5 truncate">
-              ₹{(totalRevenueMtd / 1000000).toFixed(2)}M
+              Γé╣{(totalRevenueMtd / 1000000).toFixed(2)}M
             </h3>
           </div>
           <div className="mt-3 flex items-center justify-between text-[10px] font-bold">
@@ -193,7 +193,7 @@ export default function InvestorDashboard() {
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Udhaar Balances</p>
             <h3 className="text-lg font-black text-rose-600 mt-1.5 truncate">
-              ₹{(activePortfolio.outstandingCredit / 100000).toFixed(1)}L
+              Γé╣{(activePortfolio.outstandingCredit / 100000).toFixed(1)}L
             </h3>
           </div>
           <div className="mt-3 flex items-center justify-between text-[10px] font-bold">
@@ -361,7 +361,7 @@ export default function InvestorDashboard() {
                   <tr key={pump.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3.5 pr-2 font-black text-slate-800">{pump.name}</td>
                     <td className="py-3.5 pr-2 text-slate-500">{pump.location}</td>
-                    <td className="py-3.5 pr-2 text-right font-black text-slate-850">₹{pump.revenue.toLocaleString()}</td>
+                    <td className="py-3.5 pr-2 text-right font-black text-slate-850">Γé╣{pump.revenue.toLocaleString()}</td>
                     <td className="py-3.5 pr-2 text-right text-slate-500">{pump.fuelSold.toLocaleString()} L</td>
                     <td className={`py-3.5 pr-2 text-right font-bold ${pump.growth > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {pump.growth > 0 ? '+' : ''}{pump.growth}%
@@ -400,7 +400,7 @@ export default function InvestorDashboard() {
                     <p className="text-[10px] text-slate-500 mt-0.5">{f.activeVehicles} Trucks Registered</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-slate-800">₹{f.monthlySpend.toLocaleString()}</p>
+                    <p className="font-bold text-slate-800">Γé╣{f.monthlySpend.toLocaleString()}</p>
                     <span className={`inline-block px-1.5 py-0.5 mt-1 rounded text-[8px] font-black uppercase ${
                       f.riskRating === 'low' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
                       f.riskRating === 'medium' ? 'bg-amber-50 text-amber-600 border border-amber-100' :

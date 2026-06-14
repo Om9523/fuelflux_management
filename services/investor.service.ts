@@ -1,4 +1,4 @@
-import { useInvestorStore, PortfolioProfile } from '@/stores/investor.store';
+﻿import { useInvestorStore, PortfolioProfile } from '@/stores/investor.store';
 
 export const investorService = {
   /**

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -120,15 +120,15 @@ export default function RevenueAnalytics() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
         <div className="bg-white border border-slate-200/60 rounded-2xl p-4.5 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Gross Sales Margin</p>
-          <h3 className="text-xl font-black text-slate-800 mt-1.5">₹{totalRevenue.toLocaleString()}</h3>
+          <h3 className="text-xl font-black text-slate-800 mt-1.5">Γé╣{totalRevenue.toLocaleString()}</h3>
           <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-2">
-            ▲ +5.2% MoM
+            Γû▓ +5.2% MoM
           </span>
         </div>
 
         <div className="bg-white border border-slate-200/60 rounded-2xl p-4.5 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Net Operating Yield</p>
-          <h3 className="text-xl font-black text-slate-800 mt-1.5">₹{totalProfit.toLocaleString()}</h3>
+          <h3 className="text-xl font-black text-slate-800 mt-1.5">Γé╣{totalProfit.toLocaleString()}</h3>
           <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-0.5 mt-2">
             Margin: {marginPct.toFixed(1)}%
           </span>
@@ -136,13 +136,13 @@ export default function RevenueAnalytics() {
 
         <div className="bg-white border border-slate-200/60 rounded-2xl p-4.5 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Provisional CGST (9%)</p>
-          <h3 className="text-xl font-black text-orange-600 mt-1.5">₹{cgst.toLocaleString()}</h3>
+          <h3 className="text-xl font-black text-orange-600 mt-1.5">Γé╣{cgst.toLocaleString()}</h3>
           <span className="text-[10px] text-slate-500 font-semibold mt-2 block">Accrued Central input tax</span>
         </div>
 
         <div className="bg-white border border-slate-200/60 rounded-2xl p-4.5 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Provisional SGST (9%)</p>
-          <h3 className="text-xl font-black text-orange-600 mt-1.5">₹{sgst.toLocaleString()}</h3>
+          <h3 className="text-xl font-black text-orange-600 mt-1.5">Γé╣{sgst.toLocaleString()}</h3>
           <span className="text-[10px] text-slate-500 font-semibold mt-2 block">Accrued State input tax</span>
         </div>
       </div>
@@ -266,21 +266,21 @@ export default function RevenueAnalytics() {
                 <span className="w-2 h-2 bg-[#2563EB] rounded-full" />
                 <span>Operating Cost</span>
               </div>
-              <span className="text-slate-850">₹{totalOpCost.toLocaleString()}</span>
+              <span className="text-slate-850">Γé╣{totalOpCost.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-[#f97316] rounded-full" />
                 <span>Net Profit</span>
               </div>
-              <span className="text-slate-850">₹{totalProfit.toLocaleString()}</span>
+              <span className="text-slate-850">Γé╣{totalProfit.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-[#10b981] rounded-full" />
                 <span>accrued GST (18%)</span>
               </div>
-              <span className="text-slate-850">₹{totalGst.toLocaleString()}</span>
+              <span className="text-slate-850">Γé╣{totalGst.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -312,12 +312,12 @@ export default function RevenueAnalytics() {
                 return (
                   <tr key={rev.month} className="hover:bg-slate-50 transition-colors">
                     <td className="p-4 pl-6 font-black text-slate-800">{rev.month}</td>
-                    <td className="p-4 text-right font-black text-slate-850">₹{rev.revenue.toLocaleString()}</td>
-                    <td className="p-4 text-right text-slate-550">₹{rev.operatingCost.toLocaleString()}</td>
-                    <td className="p-4 text-right text-emerald-600 font-bold">₹{rev.profit.toLocaleString()}</td>
-                    <td className="p-4 text-right text-orange-600 font-bold">₹{monthGst.toLocaleString()}</td>
-                    <td className="p-4 text-right text-slate-500">₹{(monthGst / 2).toLocaleString()}</td>
-                    <td className="p-4 text-right text-slate-500 pr-6">₹{(monthGst / 2).toLocaleString()}</td>
+                    <td className="p-4 text-right font-black text-slate-850">Γé╣{rev.revenue.toLocaleString()}</td>
+                    <td className="p-4 text-right text-slate-550">Γé╣{rev.operatingCost.toLocaleString()}</td>
+                    <td className="p-4 text-right text-emerald-600 font-bold">Γé╣{rev.profit.toLocaleString()}</td>
+                    <td className="p-4 text-right text-orange-600 font-bold">Γé╣{monthGst.toLocaleString()}</td>
+                    <td className="p-4 text-right text-slate-500">Γé╣{(monthGst / 2).toLocaleString()}</td>
+                    <td className="p-4 text-right text-slate-500 pr-6">Γé╣{(monthGst / 2).toLocaleString()}</td>
                   </tr>
                 );
               })}

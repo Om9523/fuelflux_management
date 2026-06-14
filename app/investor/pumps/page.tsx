@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -103,7 +103,7 @@ export default function PumpsPerformancePage() {
                 >
                   <td className="p-4 pl-6 font-black text-slate-800">{pump.name}</td>
                   <td className="p-4 text-slate-500">{pump.location}</td>
-                  <td className="p-4 text-right font-black text-slate-850">₹{pump.revenue.toLocaleString()}</td>
+                  <td className="p-4 text-right font-black text-slate-850">Γé╣{pump.revenue.toLocaleString()}</td>
                   <td className={`p-4 text-right font-bold ${pump.growth > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {pump.growth > 0 ? '+' : ''}{pump.growth}%
                   </td>
@@ -216,15 +216,15 @@ export default function PumpsPerformancePage() {
                     <div className="bg-slate-50 border border-slate-200/40 rounded-2xl p-4 space-y-3 font-bold text-slate-600">
                       <div className="flex justify-between">
                         <span className="text-slate-455 font-medium">MTD Sales Revenue</span>
-                        <span className="text-slate-800">₹{selectedPump.revenue.toLocaleString()}</span>
+                        <span className="text-slate-800">Γé╣{selectedPump.revenue.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-455 font-medium">Provisional GST Contribution</span>
-                        <span className="text-orange-600">₹{(selectedPump.revenue * 0.18).toLocaleString()}</span>
+                        <span className="text-orange-600">Γé╣{(selectedPump.revenue * 0.18).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-455 font-medium">Estimated Net Margins</span>
-                        <span className="text-emerald-600">₹{(selectedPump.revenue * 0.182).toLocaleString()}</span>
+                        <span className="text-emerald-600">Γé╣{(selectedPump.revenue * 0.182).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -239,7 +239,7 @@ export default function PumpsPerformancePage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-455 font-medium">Avg Transaction Size</span>
-                        <span className="text-slate-800">₹2,840.00</span>
+                        <span className="text-slate-800">Γé╣2,840.00</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-455 font-medium">Customer Retention Index</span>
