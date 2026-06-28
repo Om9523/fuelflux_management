@@ -134,7 +134,7 @@ const SecondaryBtn = ({ onClick, children }: { onClick: () => void; children: Re
 
 export default function AccountingPage() {
   const { selectedPump } = usePumpStore();
-  const pumpId = selectedPump?.id ? Number(selectedPump.id) : undefined;
+  const pumpId = selectedPump?.id ? selectedPump.id : undefined;
 
   const [activeTab, setActiveTab] = useState<MainTab>('groups');
 
@@ -338,7 +338,7 @@ export default function AccountingPage() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function GroupsTab({ groups, search, onDelete }: {
-  groups: AccountGroup[]; search: string; onDelete: (id: number) => void;
+  groups: AccountGroup[]; search: string; onDelete: (id: string) => void;
 }) {
   const filtered = groups.filter(g =>
     g.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -389,7 +389,7 @@ function GroupsTab({ groups, search, onDelete }: {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function AccountsTab({ accounts, search, onDelete }: {
-  accounts: Account[]; search: string; onDelete: (id: number) => void;
+  accounts: Account[]; search: string; onDelete: (id: string) => void;
 }) {
   const filtered = accounts.filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -449,7 +449,7 @@ function AccountsTab({ accounts, search, onDelete }: {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function PartiesTab({ parties, search, onDelete }: {
-  parties: Party[]; search: string; onDelete: (id: number) => void;
+  parties: Party[]; search: string; onDelete: (id: string) => void;
 }) {
   const filtered = parties.filter(p =>
     (p.legal_name ?? '').toLowerCase().includes(search.toLowerCase()) ||
@@ -515,7 +515,7 @@ function VouchersTab({ vouchers, search, onViewEntries }: {
   const filtered = vouchers.filter(v =>
     v.voucher_type.toLowerCase().includes(search.toLowerCase()) ||
     (v.narration ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    String(v.id).includes(search)
+    v.id.includes(search)
   );
 
   if (filtered.length === 0)
@@ -576,9 +576,9 @@ function VouchersTab({ vouchers, search, onViewEntries }: {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function BalanceSheetTab({ data }: { data: BalanceSheet | null }) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  const toggleGroup = (id: number) => {
+  const toggleGroup = (id: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
@@ -688,7 +688,7 @@ function BalanceSheetTab({ data }: { data: BalanceSheet | null }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function GroupModal({ pumpId, onClose, onSaved }: {
-  pumpId: number; onClose: () => void; onSaved: () => void;
+  pumpId: string; onClose: () => void; onSaved: () => void;
 }) {
   const [form, setForm] = useState<CreateGroupPayload>({
     pump_id: pumpId, name: '', category: '', nature: 'expenditure', affects_gross_profit: false,
@@ -748,12 +748,12 @@ function GroupModal({ pumpId, onClose, onSaved }: {
 }
 
 function AccountModal({ pumpId, groups, parties, onClose, onSaved }: {
-  pumpId: number; groups: AccountGroup[]; parties: Party[];
+  pumpId: string; groups: AccountGroup[]; parties: Party[];
   onClose: () => void; onSaved: () => void;
 }) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<CreateAccountPayload>({
-    pump_id: pumpId, group_id: 0, name: '', alias: '',
+    pump_id: pumpId, group_id: '', name: '', alias: '',
     is_bank_account: false, tcs_apply: false,
     bank_details: { bank_name: '', account_no: '', ifsc: '', branch: '' },
   });
@@ -780,14 +780,14 @@ function AccountModal({ pumpId, groups, parties, onClose, onSaved }: {
           <>
             <FormField label="Account Group" required>
               <select className={selectCls} value={form.group_id}
-                onChange={e => setForm(p => ({ ...p, group_id: Number(e.target.value) }))}>
-                <option value={0}>— Select Group —</option>
+                onChange={e => setForm(p => ({ ...p, group_id: e.target.value }))}>
+                <option value="">— Select Group —</option>
                 {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
             </FormField>
             <FormField label="Linked Party (optional)">
               <select className={selectCls} value={form.party_id ?? ''}
-                onChange={e => setForm(p => ({ ...p, party_id: e.target.value ? Number(e.target.value) : undefined }))}>
+                onChange={e => setForm(p => ({ ...p, party_id: e.target.value ? e.target.value : undefined }))}>
                 <option value="">— None —</option>
                 {parties.map(p => <option key={p.id} value={p.id}>{p.legal_name || p.alias}</option>)}
               </select>
@@ -869,7 +869,7 @@ function AccountModal({ pumpId, groups, parties, onClose, onSaved }: {
 }
 
 function PartyModal({ pumpId, onClose, onSaved }: {
-  pumpId: number; onClose: () => void; onSaved: () => void;
+  pumpId: string; onClose: () => void; onSaved: () => void;
 }) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<CreatePartyPayload>({
@@ -969,15 +969,15 @@ function PartyModal({ pumpId, onClose, onSaved }: {
 }
 
 function VoucherModal({ pumpId, accounts, onClose, onSaved }: {
-  pumpId: number; accounts: Account[]; onClose: () => void; onSaved: () => void;
+  pumpId: string; accounts: Account[]; onClose: () => void; onSaved: () => void;
 }) {
   const [mode, setMode] = useState<'quick' | 'journal'>('quick');
   const [quickForm, setQuickForm] = useState<QuickVoucherPayload>({
-    pump_id: pumpId, voucher_type: 'payment', from_account_id: 0, to_account_id: 0, amount: 0, narration: '',
+    pump_id: pumpId, voucher_type: 'payment', from_account_id: '', to_account_id: '', amount: 0, narration: '',
   });
   const [journalEntries, setJournalEntries] = useState<JournalEntryLine[]>([
-    { account_id: 0, debit_amount: 0, credit_amount: 0, entry_order: 0 },
-    { account_id: 0, debit_amount: 0, credit_amount: 0, entry_order: 1 },
+    { account_id: '', debit_amount: 0, credit_amount: 0, entry_order: 0 },
+    { account_id: '', debit_amount: 0, credit_amount: 0, entry_order: 1 },
   ]);
   const [journalNarration, setJournalNarration] = useState('');
   const [saving, setSaving] = useState(false);
@@ -1042,15 +1042,15 @@ function VoucherModal({ pumpId, accounts, onClose, onSaved }: {
             </FormField>
             <FormField label="From Account (Debit)" required>
               <select className={selectCls} value={quickForm.from_account_id}
-                onChange={e => setQuickForm(p => ({ ...p, from_account_id: Number(e.target.value) }))}>
-                <option value={0}>— Select Account —</option>
+                onChange={e => setQuickForm(p => ({ ...p, from_account_id: e.target.value }))}>
+                <option value="">— Select Account —</option>
                 {accounts.map(a => <option key={a.id} value={a.id}>{a.name}{a.alias ? ` (${a.alias})` : ''}</option>)}
               </select>
             </FormField>
             <FormField label="To Account (Credit)" required>
               <select className={selectCls} value={quickForm.to_account_id}
-                onChange={e => setQuickForm(p => ({ ...p, to_account_id: Number(e.target.value) }))}>
-                <option value={0}>— Select Account —</option>
+                onChange={e => setQuickForm(p => ({ ...p, to_account_id: e.target.value }))}>
+                <option value="">— Select Account —</option>
                 {accounts.map(a => <option key={a.id} value={a.id}>{a.name}{a.alias ? ` (${a.alias})` : ''}</option>)}
               </select>
             </FormField>
@@ -1087,10 +1087,10 @@ function VoucherModal({ pumpId, accounts, onClose, onSaved }: {
                   <select className={selectCls} value={entry.account_id}
                     onChange={e => {
                       const updated = [...journalEntries];
-                      updated[idx].account_id = Number(e.target.value);
+                      updated[idx].account_id = e.target.value;
                       setJournalEntries(updated);
                     }}>
-                    <option value={0}>— Account —</option>
+                    <option value="">— Account —</option>
                     {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                   <input type="number" className={inputCls} placeholder="0" value={entry.debit_amount || ''}
@@ -1117,7 +1117,7 @@ function VoucherModal({ pumpId, accounts, onClose, onSaved }: {
             </div>
 
             <button
-              onClick={() => setJournalEntries(prev => [...prev, { account_id: 0, debit_amount: 0, credit_amount: 0, entry_order: prev.length }])}
+              onClick={() => setJournalEntries(prev => [...prev, { account_id: '', debit_amount: 0, credit_amount: 0, entry_order: prev.length }])}
               className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-hover cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" /> Add Line

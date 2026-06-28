@@ -84,7 +84,7 @@ function CreditUsageBar({ contract, usage }: { contract: UdhaarContract; usage: 
 // ─── KYC Upload Modal ─────────────────────────────────────────────────────────
 
 function KYCModal({ pumpId, customerId, onClose, onSuccess }: {
-    pumpId: number; customerId: number; onClose: () => void; onSuccess: () => void;
+    pumpId: string; customerId: string; onClose: () => void; onSuccess: () => void;
 }) {
     const [docType, setDocType] = useState('aadhaar');
     const [imageUrl, setImageUrl] = useState('');
@@ -144,8 +144,8 @@ export default function SingleCustomerPage() {
     const params = useParams();
     const router = useRouter();
     const { selectedPump } = usePumpStore();
-    const pumpId = selectedPump?.id ? Number(selectedPump.id) : null;
-    const customerId = Number(params.customerId);
+    const pumpId = selectedPump?.id ? String(selectedPump.id) : null;
+    const customerId = params.customerId ? String(params.customerId) : '';
 
     const [data, setData] = useState<SingleCustomerView | null>(null);
     const [loading, setLoading] = useState(true);
@@ -169,7 +169,7 @@ export default function SingleCustomerPage() {
 
     useEffect(() => { load(); }, [load]);
 
-    const handleVerifyKYC = async (docId: number, status: 'accepted' | 'rejected') => {
+    const handleVerifyKYC = async (docId: string, status: 'accepted' | 'rejected') => {
         if (!pumpId) return;
         try {
             await verifyKYC(pumpId, customerId, docId, { status });
@@ -196,7 +196,7 @@ export default function SingleCustomerPage() {
         } finally { setGeneratingInvoice(false); }
     };
 
-    const handleMarkPaid = async (invoiceId: number) => {
+    const handleMarkPaid = async (invoiceId: string) => {
         if (!pumpId) return;
         try {
             await markInvoicePaid(pumpId, invoiceId);
@@ -366,7 +366,7 @@ export default function SingleCustomerPage() {
                                         <span className="font-bold text-slate-800">{value}</span>
                                     </div>
                                 ))}
-                                {active_contract.item_limits.length > 0 && (
+                                {(active_contract.item_limits?.length ?? 0) > 0 && (
                                     <div className="mt-1">
                                         <p className="text-[10px] font-extrabold text-slate-400 uppercase mb-1.5">Item Limits</p>
                                         {active_contract.item_limits.map(il => (
@@ -379,7 +379,7 @@ export default function SingleCustomerPage() {
                                         ))}
                                     </div>
                                 )}
-                                {active_contract.custom_conditions.length > 0 && (
+                                {(active_contract.custom_conditions?.length ?? 0) > 0 && (
                                     <div className="mt-1">
                                         <p className="text-[10px] font-extrabold text-slate-400 uppercase mb-1.5">Condition Cards ({active_contract.custom_conditions.length})</p>
                                         {active_contract.custom_conditions.map(c => (

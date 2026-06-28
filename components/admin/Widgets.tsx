@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, ArrowDownRight, Check, X, ShieldAlert, Heart, Activity } from 'lucide-react';
@@ -131,7 +131,7 @@ export const RiskCard: React.FC<{
   alert: FraudAlert;
   onResolve: (id: string) => void;
 }> = ({ alert, onResolve }) => {
-  const levelColors = {
+  const levelColors: Record<string, string> = {
     low: 'text-blue-600 bg-blue-50 border-blue-100',
     medium: 'text-amber-600 bg-amber-50 border-amber-100',
     high: 'text-orange-600 bg-orange-50 border-orange-100',
@@ -146,14 +146,14 @@ export const RiskCard: React.FC<{
             <ShieldAlert className="h-4.5 w-4.5" />
           </div>
           <div className="space-y-0.5">
-            <h4 className="text-xs font-extrabold text-slate-800">{alert.title}</h4>
+            <h4 className="text-xs font-extrabold text-slate-800">{alert.type}</h4>
             <span className="text-[9px] font-bold text-slate-400 font-mono">
               {new Date(alert.timestamp).toLocaleTimeString()}
             </span>
           </div>
         </div>
-        <span className={`text-[9px] font-extrabold px-2 py-0.5 border rounded-full uppercase shrink-0 ${levelColors[alert.level]}`}>
-          {alert.level}
+        <span className={`text-[9px] font-extrabold px-2 py-0.5 border rounded-full uppercase shrink-0 ${levelColors[alert.severity]}`}>
+          {alert.severity}
         </span>
       </div>
 
@@ -249,7 +249,7 @@ export const FraudAlertPanel: React.FC<{
   alerts: FraudAlert[];
   onResolve: (id: string) => void;
 }> = ({ alerts, onResolve }) => {
-  const levelText = {
+  const levelText: Record<string, string> = {
     low: 'text-blue-600 bg-blue-50 border-blue-100',
     medium: 'text-amber-600 bg-amber-50 border-amber-100',
     high: 'text-orange-600 bg-orange-50 border-orange-100',
@@ -274,9 +274,9 @@ export const FraudAlertPanel: React.FC<{
           alerts.map((alert) => (
             <div key={alert.id} className="py-3 first:pt-0 last:pb-0 space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-extrabold text-slate-800">{alert.title}</span>
-                <span className={`text-[8px] font-extrabold px-1.5 py-0.5 border rounded-full uppercase ${levelText[alert.level]}`}>
-                  {alert.level}
+                <span className="text-xs font-extrabold text-slate-800">{alert.type}</span>
+                <span className={`text-[8px] font-extrabold px-1.5 py-0.5 border rounded-full uppercase ${levelText[alert.severity]}`}>
+                  {alert.severity}
                 </span>
               </div>
               <p className="text-[10.5px] text-slate-500 font-medium leading-relaxed">

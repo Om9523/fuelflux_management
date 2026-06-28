@@ -49,7 +49,7 @@ export default function CRMPage() {
   const [udhaarHistory, setUdhaarHistory] = useState<UdhaarHistoryItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Udhaar Modal states
   const [isRecordUdhaarModalOpen, setIsRecordUdhaarModalOpen] = useState(false);
@@ -69,7 +69,7 @@ export default function CRMPage() {
 
     try {
       const backendCustomers = await crmService.getCustomers(
-        Number(selectedPump.id)
+        selectedPump.id
       );
 
       const mapped = backendCustomers.map((c) => ({
@@ -105,7 +105,7 @@ export default function CRMPage() {
   }, [loadCrmData]);
 
   // ─── Load udhaar history when drawer opens ───────────────────────────────────
-  const loadUdhaarHistory = useCallback(async (customerId: number) => {
+  const loadUdhaarHistory = useCallback(async (customerId: string) => {
     setIsHistoryLoading(true);
     try {
       const history = await crmService.getUdhaarHistory(customerId);
@@ -171,7 +171,7 @@ export default function CRMPage() {
         vehicle_type: newCust.type,
         credit_limit: rawLimit,
         is_fleet: newCust.type === 'Fleet' || newCust.type === 'Company',
-        pump_id: Number(selectedPump.id),
+        pump_id: selectedPump.id,
       });
 
       const mappedNew = {
@@ -241,7 +241,7 @@ export default function CRMPage() {
         customer_id: activeClient.dbId,
         amount: amountVal,
         description: udhaarDesc || 'Fuel purchase',
-        pump_id: Number(selectedPump.id),
+        pump_id: selectedPump.id,
         udhaar_type: 'manual',
         fuel_type: udhaarFuelType || null,
         volume: udhaarVolume ? parseFloat(udhaarVolume) : null,
@@ -266,7 +266,7 @@ export default function CRMPage() {
   };
 
   // ─── Drawer: Delete udhaar ───────────────────────────────────────────────────
-  const handleDeleteUdhaar = async (udhaarId: number, amount: number) => {
+  const handleDeleteUdhaar = async (udhaarId: string, amount: number) => {
     if (!activeClient) return;
     try {
       setDeletingId(udhaarId);
@@ -316,7 +316,7 @@ export default function CRMPage() {
         customer_id: targetCustomer.dbId,
         amount: amountVal,
         description: modalUdhaarDesc || 'Fuel purchase',
-        pump_id: Number(selectedPump.id),           // ← pump_id fixed
+        pump_id: selectedPump.id,           // ← pump_id fixed
         udhaar_type: 'manual',
         fuel_type: modalFuelType || null,
         volume: modalVolume ? parseFloat(modalVolume) : null,

@@ -60,7 +60,7 @@ export default function StockSummaryTab() {
     // Filters — persistent across renders (same tab, same session)
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
-    const [groupId, setGroupId] = useState<number | ''>('');
+    const [groupId, setGroupId] = useState<string>('');
     const [category, setCategory] = useState('');
 
     // ── Load ──────────────────────────────────────────────────────────────────
@@ -70,13 +70,13 @@ export default function StockSummaryTab() {
         setLoading(true);
         try {
             const [s, g] = await Promise.all([
-                fetchStockSummary(Number(selectedPump.id), {
+                fetchStockSummary(selectedPump.id, {
                     date_from: dateFrom || undefined,
                     date_to: dateTo || undefined,
                     group_id: groupId || undefined,
                     category: category || undefined,
                 }),
-                fetchItemGroups(Number(selectedPump.id)),
+                fetchItemGroups(selectedPump.id),
             ]);
             setSummary(s);
             setGroups(g);
@@ -157,7 +157,7 @@ export default function StockSummaryTab() {
                         <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Group</label>
                         <select
                             value={groupId}
-                            onChange={e => setGroupId(e.target.value ? Number(e.target.value) : '')}
+                            onChange={e => setGroupId(e.target.value)}
                             className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none bg-white"
                         >
                             <option value="">All Groups</option>

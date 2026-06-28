@@ -19,7 +19,7 @@ import { toast } from '@/components/feedback/Toast';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  
+
   const {
     pumps,
     owners,

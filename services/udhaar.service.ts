@@ -12,21 +12,21 @@ export type BillingCycle = 'weekly' | 'fortnightly' | 'monthly';
 export type BillBy = 'vehicle' | 'customer';
 
 export interface UdhaarCustomer {
-    id: number;
-    pump_id: number;
+    id: string;
+    pump_id: string;
     customer_type: CustomerType;
     name: string;
     contact_name: string | null;
     contact_phone: string | null;
     contact_email: string | null;
-    party_account_id: number | null;
+    party_account_id: string | null;
     kyc_status: KYCStatus;
     is_active: boolean;
     created_at: string;
 }
 
 export interface CustomerListItem {
-    id: number;
+    id: string;
     name: string;
     customer_type: CustomerType;
     contact_phone: string | null;
@@ -37,7 +37,7 @@ export interface CustomerListItem {
 }
 
 export interface KYCDocument {
-    id: number;
+    id: string;
     document_type: string;
     image_url: string | null;
     status: KYCStatus;
@@ -47,8 +47,8 @@ export interface KYCDocument {
 }
 
 export interface UdhaarVehicle {
-    id: number;
-    customer_id: number;
+    id: string;
+    customer_id: string;
     number_plate: string;
     registration_type: 'private' | 'commercial';
     make: string | null;
@@ -64,7 +64,7 @@ export interface UdhaarVehicle {
 }
 
 export interface SlipBooklet {
-    id: number;
+    id: string;
     booklet_number: string;
     start_number: number;
     end_number: number;
@@ -72,7 +72,7 @@ export interface SlipBooklet {
 }
 
 export interface ItemLimit {
-    id: number;
+    id: string;
     item_name: string;
     qty_per_fill: number | null;
     qty_per_day: number | null;
@@ -80,10 +80,10 @@ export interface ItemLimit {
 }
 
 export interface CustomCondition {
-    id: number;
+    id: string;
     vehicle_type: string | null;
     item_name: string | null;
-    station_id: number | null;
+    station_id: string | null;
     max_slips: number | null;
     money_per_fill: number | null;
     money_per_day: number | null;
@@ -94,9 +94,9 @@ export interface CustomCondition {
 }
 
 export interface UdhaarContract {
-    id: number;
-    customer_id: number;
-    pump_id: number;
+    id: string;
+    customer_id: string;
+    pump_id: string;
     version: number;
     station_name: string | null;
     org_name: string | null;
@@ -129,7 +129,7 @@ export interface UdhaarContract {
     current_spend: number;
     current_slips_used: number;
     credit_usage_percent: number | null;
-    amended_from: number | null;
+    amended_from: string | null;
     created_at: string;
     slip_booklets: SlipBooklet[];
     item_limits: ItemLimit[];
@@ -137,7 +137,7 @@ export interface UdhaarContract {
 }
 
 export interface ContractUsage {
-    contract_id: number;
+    contract_id: string;
     total_credit_limit: number;
     current_spend: number;
     remaining_credit: number;
@@ -149,10 +149,10 @@ export interface ContractUsage {
 }
 
 export interface UdhaarTransaction {
-    id: number;
-    contract_id: number;
-    customer_id: number;
-    vehicle_id: number | null;
+    id: string;
+    contract_id: string;
+    customer_id: string;
+    vehicle_id: string | null;
     item_name: string | null;
     quantity: number;
     amount: number;
@@ -165,12 +165,12 @@ export interface UdhaarTransaction {
 }
 
 export interface UdhaarInvoice {
-    id: number;
-    contract_id: number;
-    customer_id: number;
+    id: string;
+    contract_id: string;
+    customer_id: string;
     customer_name?: string;
-    vehicle_id: number | null;
-    pump_id: number;
+    vehicle_id: string | null;
+    pump_id: string;
     cycle_start: string;
     cycle_end: string;
     total_amount: number;
@@ -195,17 +195,17 @@ export interface SingleCustomerView {
 
 // ─── Customer APIs ────────────────────────────────────────────────────────────
 
-export const fetchCustomers = async (pumpId: number): Promise<CustomerListItem[]> => {
+export const fetchCustomers = async (pumpId: string): Promise<CustomerListItem[]> => {
     const r = await api().get(`/udhaar/customers?pump_id=${pumpId}`);
     return r.data;
 };
 
-export const fetchCustomerDetail = async (pumpId: number, customerId: number): Promise<SingleCustomerView> => {
+export const fetchCustomerDetail = async (pumpId: string, customerId: string): Promise<SingleCustomerView> => {
     const r = await api().get(`/udhaar/customers/${customerId}?pump_id=${pumpId}`);
     return r.data;
 };
 
-export const createCustomer = async (pumpId: number, payload: {
+export const createCustomer = async (pumpId: string, payload: {
     customer_type: CustomerType;
     name: string;
     contact_name?: string;
@@ -216,28 +216,28 @@ export const createCustomer = async (pumpId: number, payload: {
     return r.data;
 };
 
-export const updateCustomer = async (pumpId: number, customerId: number, payload: Partial<{
+export const updateCustomer = async (pumpId: string, customerId: string, payload: Partial<{
     name: string; contact_name: string; contact_phone: string; contact_email: string;
 }>) => {
     const r = await api().put(`/udhaar/customers/${customerId}?pump_id=${pumpId}`, payload);
     return r.data;
 };
 
-export const deleteCustomer = async (pumpId: number, customerId: number) => {
+export const deleteCustomer = async (pumpId: string, customerId: string) => {
     const r = await api().delete(`/udhaar/customers/${customerId}?pump_id=${pumpId}`);
     return r.data;
 };
 
 // ─── KYC APIs ─────────────────────────────────────────────────────────────────
 
-export const uploadKYC = async (pumpId: number, customerId: number, payload: {
+export const uploadKYC = async (pumpId: string, customerId: string, payload: {
     document_type: string; image_url?: string;
 }) => {
     const r = await api().post(`/udhaar/customers/${customerId}/kyc?pump_id=${pumpId}`, payload);
     return r.data;
 };
 
-export const verifyKYC = async (pumpId: number, customerId: number, docId: number, payload: {
+export const verifyKYC = async (pumpId: string, customerId: string, docId: string, payload: {
     status: 'accepted' | 'rejected'; rejection_reason?: string;
 }) => {
     const r = await api().patch(`/udhaar/customers/${customerId}/kyc/${docId}/verify?pump_id=${pumpId}`, payload);
@@ -246,14 +246,14 @@ export const verifyKYC = async (pumpId: number, customerId: number, docId: numbe
 
 // ─── Vehicle APIs ─────────────────────────────────────────────────────────────
 
-export const fetchVehicles = async (pumpId: number, customerId?: number): Promise<UdhaarVehicle[]> => {
+export const fetchVehicles = async (pumpId: string, customerId?: string): Promise<UdhaarVehicle[]> => {
     const q = customerId ? `&customer_id=${customerId}` : '';
     const r = await api().get(`/udhaar/vehicles?pump_id=${pumpId}${q}`);
     return r.data;
 };
 
-export const createVehicle = async (pumpId: number, payload: {
-    customer_id: number;
+export const createVehicle = async (pumpId: string, payload: {
+    customer_id: string;
     number_plate: string;
     registration_type: 'private' | 'commercial';
     make?: string; model?: string; variant?: string;
@@ -267,29 +267,29 @@ export const createVehicle = async (pumpId: number, payload: {
     return r.data;
 };
 
-export const deleteVehicle = async (pumpId: number, vehicleId: number) => {
+export const deleteVehicle = async (pumpId: string, vehicleId: string) => {
     const r = await api().delete(`/udhaar/vehicles/${vehicleId}?pump_id=${pumpId}`);
     return r.data;
 };
 
 // ─── Contract APIs ────────────────────────────────────────────────────────────
 
-export const issueContract = async (pumpId: number, payload: any) => {
+export const issueContract = async (pumpId: string, payload: any) => {
     const r = await api().post(`/udhaar/contracts?pump_id=${pumpId}`, payload);
     return r.data;
 };
 
-export const amendContract = async (pumpId: number, contractId: number, payload: any) => {
+export const amendContract = async (pumpId: string, contractId: string, payload: any) => {
     const r = await api().post(`/udhaar/contracts/${contractId}/amend?pump_id=${pumpId}`, payload);
     return r.data;
 };
 
-export const fetchContractUsage = async (pumpId: number, contractId: number): Promise<ContractUsage> => {
+export const fetchContractUsage = async (pumpId: string, contractId: string): Promise<ContractUsage> => {
     const r = await api().get(`/udhaar/contracts/${contractId}/usage?pump_id=${pumpId}`);
     return r.data;
 };
 
-export const fetchAllContracts = async (pumpId: number, status?: string) => {
+export const fetchAllContracts = async (pumpId: string, status?: string) => {
     const q = status ? `&status=${status}` : '';
     const r = await api().get(`/udhaar/contracts?pump_id=${pumpId}${q}`);
     return r.data;
@@ -297,12 +297,12 @@ export const fetchAllContracts = async (pumpId: number, status?: string) => {
 
 // ─── Invoice APIs ─────────────────────────────────────────────────────────────
 
-export const generateInvoice = async (pumpId: number, contractId: number) => {
+export const generateInvoice = async (pumpId: string, contractId: string) => {
     const r = await api().post(`/udhaar/invoices/generate?pump_id=${pumpId}&contract_id=${contractId}`);
     return r.data;
 };
 
-export const fetchInvoices = async (pumpId: number, customerId?: number, status?: string) => {
+export const fetchInvoices = async (pumpId: string, customerId?: string, status?: string) => {
     let q = '';
     if (customerId) q += `&customer_id=${customerId}`;
     if (status) q += `&status=${status}`;
@@ -310,14 +310,14 @@ export const fetchInvoices = async (pumpId: number, customerId?: number, status?
     return r.data;
 };
 
-export const markInvoicePaid = async (pumpId: number, invoiceId: number) => {
+export const markInvoicePaid = async (pumpId: string, invoiceId: string) => {
     const r = await api().patch(`/udhaar/invoices/${invoiceId}/mark-paid?pump_id=${pumpId}`);
     return r.data;
 };
 
 // ─── Transactions APIs ────────────────────────────────────────────────────────
 
-export const fetchTransactions = async (pumpId: number, customerId?: number, contractId?: number) => {
+export const fetchTransactions = async (pumpId: string, customerId?: string, contractId?: string) => {
     let q = '';
     if (customerId) q += `&customer_id=${customerId}`;
     if (contractId) q += `&contract_id=${contractId}`;

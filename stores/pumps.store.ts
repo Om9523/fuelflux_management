@@ -106,6 +106,7 @@ export const usePumpStore = create<PumpState>((set, get) => ({
   error: null,
 
   initializePumps: async () => {
+    if (get().isInitialized || get().isLoading) return;
     set({ isLoading: true, error: null });
     try {
       const backendPumps = await fetchMyPumps();

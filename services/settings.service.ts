@@ -5,7 +5,7 @@ const api = () => authService.getApi();
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface PumpProfile {
-    id: number;
+    id: string;
     name: string;
     org_name: string | null;
     logo_url: string | null;
@@ -28,7 +28,7 @@ export interface PumpProfile {
 }
 
 export interface PumpSummary {
-    id: number;
+    id: string;
     name: string;
     org_name: string | null;
     logo_url: string | null;
@@ -43,12 +43,12 @@ export interface PumpSummary {
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
-export const fetchPumpProfile = async (pumpId: number): Promise<PumpProfile> => {
+export const fetchPumpProfile = async (pumpId: string): Promise<PumpProfile> => {
     const r = await api().get(`/settings/profile?pump_id=${pumpId}`);
     return r.data;
 };
 
-export const updatePumpProfile = async (pumpId: number, payload: {
+export const updatePumpProfile = async (pumpId: string, payload: {
     org_name?: string;
     address?: string;
     opening_time?: string;
@@ -62,7 +62,7 @@ export const updatePumpProfile = async (pumpId: number, payload: {
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 
-export const uploadPumpLogo = async (pumpId: number, file: File): Promise<{ logo_url: string }> => {
+export const uploadPumpLogo = async (pumpId: string, file: File): Promise<{ logo_url: string }> => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -72,7 +72,7 @@ export const uploadPumpLogo = async (pumpId: number, file: File): Promise<{ logo
     return r.data;
 };
 
-export const deletePumpLogo = async (pumpId: number) => {
+export const deletePumpLogo = async (pumpId: string) => {
     const r = await api().delete(`/settings/logo?pump_id=${pumpId}`);
     return r.data;
 };

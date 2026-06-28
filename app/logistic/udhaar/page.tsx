@@ -21,9 +21,9 @@ import { toast } from '@/components/feedback/Toast';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface UsageSummary {
-    customer_id: number;
+    customer_id: string;
     vehicle_plate: string;
-    pump_id: number;
+    pump_id: string;
     pump_name: string;
     credit_limit: number;
     outstanding_amount: number;
@@ -31,9 +31,9 @@ interface UsageSummary {
 }
 
 interface RecentTransaction {
-    id: number;
-    vehicle_id: number;
-    pump_id: number;
+    id: string;
+    vehicle_id: string;
+    pump_id: string;
     amount: number;
     volume: number | null;
     fuel_type: string | null;
@@ -42,9 +42,9 @@ interface RecentTransaction {
 }
 
 interface OverspendAlert {
-    id: number;
+    id: string;
     vehicle_plate: string;
-    pump_id: number;
+    pump_id: string;
     pump_name: string;
     credit_limit: number;
     amount_used: number;

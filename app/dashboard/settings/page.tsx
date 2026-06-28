@@ -62,7 +62,7 @@ function FieldRow({ label, value, editable, onChange, placeholder, mono, type }:
 // ─── Logo Uploader ────────────────────────────────────────────────────────────
 
 function LogoUploader({ pumpId, currentLogoUrl, onLogoChange }: {
-  pumpId: number;
+  pumpId: string;
   currentLogoUrl: string | null;
   onLogoChange: (url: string | null) => void;
 }) {
@@ -201,7 +201,7 @@ function PumpCard({ pump, selected, onClick }: {
 
 export default function SettingsPage() {
   const { selectedPump, setSelectedPump } = usePumpStore();
-  const pumpId = selectedPump?.id ? Number(selectedPump.id) : null;
+  const pumpId = selectedPump?.id || null;
 
   const [activeTab, setActiveTab] = useState<'profile' | 'brand' | 'iot' | 'notifications' | 'tax' | 'stations'>('profile');
   const [profile, setProfile] = useState<PumpProfile | null>(null);

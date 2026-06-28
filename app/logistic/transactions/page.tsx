@@ -25,7 +25,8 @@ interface LiveTransaction {
 }
 
 export default function TransactionsPage() {
-  const { activeFleetId } = useFleetStore();
+  const { activeFleetId, fleets } = useFleetStore();
+  const activeFleet = fleets.find(f => f.id === activeFleetId);
   const [loading, setLoading] = useState(true);
   const [allTxns, setAllTxns] = useState<LiveTransaction[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -260,7 +261,7 @@ export default function TransactionsPage() {
                   <div className="flex justify-between items-start border-b border-slate-100 pb-3 mt-1">
                     <div>
                       <h4 className="font-black text-xs text-slate-800 uppercase tracking-tight">FuelFlux Network</h4>
-                      <p className="text-[9px] font-semibold text-slate-400">GSTIN: {activeFleetId === 'fleet_1' ? '37AAPCA2031B1ZN' : '36BBBCB1092D2ZM'}</p>
+                      <p className="text-[9px] font-semibold text-slate-400">GSTIN: {activeFleet?.gstin || 'N/A'}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[9px] font-bold text-slate-400 uppercase">Dispenser ID</p>

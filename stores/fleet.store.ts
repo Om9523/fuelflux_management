@@ -70,59 +70,16 @@ interface FleetState {
   requestCreditIncrease: (vehicleId: string, limit: number) => Promise<void>;
   requestVoucher: (voucher: Omit<QRVoucher, 'id' | 'status' | 'qrCode' | 'createdDate'>) => Promise<QRVoucher>;
   useVoucher: (voucherId: string) => void;
+  setVehicles: (vehicles: LogisticVehicle[]) => void;
+  setVouchers: (vouchers: QRVoucher[]) => void;
   initializeFleetStore: () => void;
 }
 
-// Fleet profiles only — vehicles come from backend, not seed
-const SEED_FLEETS: FleetProfile[] = [
-  {
-    id: 'fleet_1',
-    name: 'Apex Logistics Carriers Ltd.',
-    gstin: '37AAPCA2031B1ZN',
-    billingAddress: 'NH-65 Gateway, Near Toll Plaza, Benz Circle, Vijayawada',
-    creditApproved: 425740,
-    creditLimit: 1050000,
-  },
-  {
-    id: 'fleet_2',
-    name: 'GK Transport Cluster',
-    gstin: '36BBBCB1092D2ZM',
-    billingAddress: 'IT Corridor Junction, Gachibowli, Hyderabad, Telangana',
-    creditApproved: 892300,
-    creditLimit: 1200000,
-  },
-];
-
-// Seed transactions only as fallback if backend is down
-const SEED_TRANSACTIONS: Record<string, FuelTransaction[]> = {
-  fleet_1: [
-    { id: 'TXN-501', vehicleId: 'VEH-101', vehicleNumber: 'TS-08-EJ-9921', pumpName: 'Vijayawada Highway Fuel Center', fuelType: 'diesel', quantity: 150, amount: 13500, driverName: 'Karthik Raju', paymentType: 'credit', date: '2026-05-26 14:30', balanceRemaining: 157150 },
-    { id: 'TXN-502', vehicleId: 'VEH-102', vehicleNumber: 'TS-08-EJ-9922', pumpName: 'Vijayawada Highway Fuel Center', fuelType: 'diesel', quantity: 90, amount: 8100, driverName: 'Madan Lal', paymentType: 'credit', date: '2026-05-25 10:15', balanceRemaining: 117110 },
-    { id: 'TXN-503', vehicleId: 'VEH-101', vehicleNumber: 'TS-08-EJ-9921', pumpName: 'Vijayawada Highway Fuel Center', fuelType: 'diesel', quantity: 180, amount: 16200, driverName: 'Karthik Raju', paymentType: 'credit', date: '2026-05-24 18:40', balanceRemaining: 170650 },
-  ],
-  fleet_2: [
-    { id: 'TXN-601', vehicleId: 'VEH-202', vehicleNumber: 'KA-51-MM-8921', pumpName: 'Hyderabad Gachibowli Station', fuelType: 'diesel', quantity: 240, amount: 21600, driverName: 'Ananya Roy', paymentType: 'credit', date: '2026-05-27 09:20', balanceRemaining: 20000 },
-    { id: 'TXN-602', vehicleId: 'VEH-201', vehicleNumber: 'MH-14-GH-8902', pumpName: 'Hyderabad Gachibowli Station', fuelType: 'diesel', quantity: 110, amount: 9900, driverName: 'Vikram Singh', paymentType: 'credit', date: '2026-05-26 11:45', balanceRemaining: 287700 },
-  ],
-};
-
-const SEED_VOUCHERS: Record<string, QRVoucher[]> = {
-  fleet_1: [
-    { id: 'VCH-101', vehicleId: 'VEH-101', vehicleNumber: 'TS-08-EJ-9921', amount: 8000, fuelType: 'diesel', status: 'approved', expiryDate: '2026-05-30', createdDate: '2026-05-26', qrCode: 'QR_APX_VCH_101_8000_DSL', notes: 'Consignment shipment to Vizag Port.' },
-    { id: 'VCH-102', vehicleId: 'VEH-102', vehicleNumber: 'TS-08-EJ-9922', amount: 5000, fuelType: 'diesel', status: 'used', expiryDate: '2026-05-25', createdDate: '2026-05-23', qrCode: 'QR_APX_VCH_102_5000_DSL', notes: 'Refueling backup before toll transit.' },
-    { id: 'VCH-103', vehicleId: 'VEH-103', vehicleNumber: 'AP-09-CD-1234', amount: 1500, fuelType: 'cng', status: 'pending', expiryDate: '2026-05-29', createdDate: '2026-05-27', qrCode: 'QR_APX_VCH_103_1500_CNG', notes: 'Local executive inspection transit.' },
-  ],
-  fleet_2: [
-    { id: 'VCH-201', vehicleId: 'VEH-201', vehicleNumber: 'MH-14-GH-8902', amount: 12000, fuelType: 'diesel', status: 'approved', expiryDate: '2026-05-31', createdDate: '2026-05-27', qrCode: 'QR_GK_VCH_201_12000_DSL', notes: 'Fleet cargo haul Hyderabad-Bangalore.' },
-  ],
-};
+// Stable fleet_id tied to the logged-in user (will be overridden by backend userId)
+const DEFAULT_FLEET_ID = 'fleet_current';
 
 const KEYS = {
-  FLEETS: 'fuelflux_logistic_fleets',
   ACTIVE_FLEET_ID: 'fuelflux_logistic_active_fleet_id',
-  VEHICLES: 'fuelflux_logistic_vehicles',
-  TRANSACTIONS: 'fuelflux_logistic_transactions',
-  VOUCHERS: 'fuelflux_logistic_vouchers',
 };
 
 const getStorage = () => {
@@ -132,7 +89,7 @@ const getStorage = () => {
 
 export const useFleetStore = create<FleetState>((set, get) => ({
   fleets: [],
-  activeFleetId: '',
+  activeFleetId: DEFAULT_FLEET_ID,
   vehicles: {},
   transactions: {},
   vouchers: {},
@@ -143,63 +100,20 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     const storage = getStorage();
     if (!storage) return;
 
-    // Load fleets
-    let storedFleets: FleetProfile[] = [];
-    const fleetsJson = storage.getItem(KEYS.FLEETS);
-    if (fleetsJson) {
-      storedFleets = JSON.parse(fleetsJson);
-    } else {
-      storedFleets = SEED_FLEETS;
-      storage.setItem(KEYS.FLEETS, JSON.stringify(SEED_FLEETS));
-    }
-
-    // Load active fleet id
+    // Active fleet id from storage or default
     let activeId = storage.getItem(KEYS.ACTIVE_FLEET_ID);
-    if (!activeId || !storedFleets.find((f) => f.id === activeId)) {
-      activeId = storedFleets[0]?.id || 'fleet_1';
+    if (!activeId) {
+      activeId = DEFAULT_FLEET_ID;
       storage.setItem(KEYS.ACTIVE_FLEET_ID, activeId);
     }
 
-    // ── VEHICLES: Start EMPTY — vehiclesService.getVehicles() will fill from backend ──
-    // We do NOT seed vehicles from localStorage here.
-    // If localStorage has real backend data (written by vehiclesService), load it.
-    // If localStorage has the old dummy seed data, we ignore it by checking a flag.
-    let storedVehicles: Record<string, LogisticVehicle[]> = {};
-    const vehiclesJson = storage.getItem(KEYS.VEHICLES);
-    const isBackendData = storage.getItem('fuelflux_vehicles_from_backend') === 'true';
-
-    if (vehiclesJson && isBackendData) {
-      // Only trust localStorage vehicles if they came from the backend
-      storedVehicles = JSON.parse(vehiclesJson);
-    }
-    // else: leave storedVehicles as {} — backend fetch will populate it
-
-    // Load transactions
-    let storedTxns: Record<string, FuelTransaction[]> = {};
-    const txnsJson = storage.getItem(KEYS.TRANSACTIONS);
-    if (txnsJson) {
-      storedTxns = JSON.parse(txnsJson);
-    } else {
-      storedTxns = SEED_TRANSACTIONS;
-      storage.setItem(KEYS.TRANSACTIONS, JSON.stringify(SEED_TRANSACTIONS));
-    }
-
-    // Load vouchers
-    let storedVouchers: Record<string, QRVoucher[]> = {};
-    const vouchersJson = storage.getItem(KEYS.VOUCHERS);
-    if (vouchersJson) {
-      storedVouchers = JSON.parse(vouchersJson);
-    } else {
-      storedVouchers = SEED_VOUCHERS;
-      storage.setItem(KEYS.VOUCHERS, JSON.stringify(SEED_VOUCHERS));
-    }
-
+    // Start with clean empty state — backend fetches will populate everything
     set({
-      fleets: storedFleets,
       activeFleetId: activeId,
-      vehicles: storedVehicles,
-      transactions: storedTxns,
-      vouchers: storedVouchers,
+      fleets: [],
+      vehicles: {},
+      transactions: {},
+      vouchers: {},
     });
   },
 
@@ -209,12 +123,25 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     set({ activeFleetId: id });
   },
 
+  // Set vehicles from backend response
+  setVehicles: (vehicles) => {
+    const activeId = get().activeFleetId;
+    set((state) => ({
+      vehicles: { ...state.vehicles, [activeId]: vehicles },
+    }));
+  },
+
+  // Set vouchers from backend response
+  setVouchers: (vouchers) => {
+    const activeId = get().activeFleetId;
+    set((state) => ({
+      vouchers: { ...state.vouchers, [activeId]: vouchers },
+    }));
+  },
+
   addVehicle: async (vehicleData) => {
     set({ isLoading: true, error: null });
     await new Promise((resolve) => setTimeout(resolve, 800));
-
-    const storage = getStorage();
-    if (!storage) throw new Error('Local storage not available');
 
     const currentVehicles = get().vehicles;
     const activeId = get().activeFleetId;
@@ -232,13 +159,11 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       [activeId]: [...fleetVehicles, newVehicle],
     };
 
-    storage.setItem(KEYS.VEHICLES, JSON.stringify(updated));
     set({ vehicles: updated, isLoading: false });
     return newVehicle;
   },
 
   updateVehicleStatus: (vehicleId, status) => {
-    const storage = getStorage();
     const currentVehicles = get().vehicles;
     const activeId = get().activeFleetId;
     const fleetVehicles = currentVehicles[activeId] || [];
@@ -247,8 +172,6 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       v.id === vehicleId ? { ...v, status } : v
     );
     const updated = { ...currentVehicles, [activeId]: updatedFleet };
-
-    if (storage) storage.setItem(KEYS.VEHICLES, JSON.stringify(updated));
     set({ vehicles: updated });
   },
 
@@ -256,7 +179,6 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     set({ isLoading: true });
     await new Promise((resolve) => setTimeout(resolve, 600));
 
-    const storage = getStorage();
     const currentVehicles = get().vehicles;
     const activeId = get().activeFleetId;
     const fleetVehicles = currentVehicles[activeId] || [];
@@ -265,17 +187,12 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       v.id === vehicleId ? { ...v, creditLimit: limit } : v
     );
     const updated = { ...currentVehicles, [activeId]: updatedFleet };
-
-    if (storage) storage.setItem(KEYS.VEHICLES, JSON.stringify(updated));
     set({ vehicles: updated, isLoading: false });
   },
 
   requestVoucher: async (voucherData) => {
     set({ isLoading: true });
     await new Promise((resolve) => setTimeout(resolve, 800));
-
-    const storage = getStorage();
-    if (!storage) throw new Error('Local storage not available');
 
     const currentVouchers = get().vouchers;
     const activeId = get().activeFleetId;
@@ -294,13 +211,11 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       [activeId]: [...fleetVouchers, newVoucher],
     };
 
-    storage.setItem(KEYS.VOUCHERS, JSON.stringify(updated));
     set({ vouchers: updated, isLoading: false });
     return newVoucher;
   },
 
   useVoucher: (voucherId) => {
-    const storage = getStorage();
     const currentVouchers = get().vouchers;
     const activeId = get().activeFleetId;
     const fleetVouchers = currentVouchers[activeId] || [];
@@ -309,8 +224,6 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       v.id === voucherId ? { ...v, status: 'used' as const } : v
     );
     const updated = { ...currentVouchers, [activeId]: updatedFleet };
-
-    if (storage) storage.setItem(KEYS.VOUCHERS, JSON.stringify(updated));
     set({ vouchers: updated });
   },
 }));

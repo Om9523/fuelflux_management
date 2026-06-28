@@ -31,6 +31,8 @@ import {
 } from '@/services/dashboard.service';
 import { toast } from '@/components/feedback/Toast';
 
+import { SubscriptionWidget } from '@/components/dashboard/SubscriptionWidget';
+
 // ─── Stat Card Component ─────────────────────────────────────────────────────
 
 interface StatCardProps {
@@ -273,6 +275,7 @@ export default function DashboardHome() {
           </button>
         </div>
       </div>
+      <SubscriptionWidget pumpId={pump.id} />
 
       {/* 2. KPI STAT CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
@@ -346,18 +349,16 @@ export default function DashboardHome() {
                           ₹{d.revenue > 0 ? (d.revenue / 1000).toFixed(1) + 'K' : '0'}
                         </span>
                         <div
-                          className={`w-full rounded-t-lg transition-all ${
-                            isToday
-                              ? 'bg-orange-500 shadow-sm shadow-orange-200'
-                              : d.revenue > 0
+                          className={`w-full rounded-t-lg transition-all ${isToday
+                            ? 'bg-orange-500 shadow-sm shadow-orange-200'
+                            : d.revenue > 0
                               ? 'bg-orange-200 hover:bg-orange-400'
                               : 'bg-slate-100'
-                          }`}
+                            }`}
                           style={{ height: `${Math.max(barPct, d.revenue > 0 ? 4 : 2)}%` }}
                         />
-                        <span className={`text-[9px] font-bold font-mono ${
-                          isToday ? 'text-orange-500' : 'text-slate-400'
-                        }`}>{d.day.toUpperCase()}</span>
+                        <span className={`text-[9px] font-bold font-mono ${isToday ? 'text-orange-500' : 'text-slate-400'
+                          }`}>{d.day.toUpperCase()}</span>
                       </div>
                     );
                   })}
@@ -437,11 +438,10 @@ export default function DashboardHome() {
               topAttendants.map((at, idx) => (
                 <div key={at.id} className="flex justify-between items-center p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all text-xs">
                   <div className="flex items-center gap-3">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-[11px] ${
-                      idx === 0 ? 'bg-amber-100 text-amber-600' :
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-[11px] ${idx === 0 ? 'bg-amber-100 text-amber-600' :
                       idx === 1 ? 'bg-slate-100 text-slate-600' :
-                      'bg-orange-50 text-orange-400'
-                    }`}>
+                        'bg-orange-50 text-orange-400'
+                      }`}>
                       {idx + 1}
                     </div>
                     <div className="flex flex-col text-left">

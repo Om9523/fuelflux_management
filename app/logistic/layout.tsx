@@ -23,11 +23,15 @@ import {
   ShieldCheck,
   FileText,
   CreditCard,
+  Banknote,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import { useSidebarStore } from '@/stores/sidebar.store';
 import { useFleetStore } from '@/stores/fleet.store';
 import { useWalletStore } from '@/stores/wallet.store';
 import { useNotificationStore } from '@/stores/notification.store';
+import { useAuthStore } from '@/stores/auth.store';
 import { vehiclesService } from '@/services/vehicles.service';
 import { transactionsService } from '@/services/transactions.service';
 import { walletService } from '@/services/wallet.service';
@@ -44,6 +48,7 @@ export default function LogisticLayout({
   const { fleets, activeFleetId, setActiveFleetId, initializeFleetStore } = useFleetStore();
   const { initializeWalletStore } = useWalletStore();
   const { unreadCount } = useNotificationStore();
+  const { user, initializeSession } = useAuthStore();
 
   const [fleetDropdownOpen, setFleetDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -52,9 +57,14 @@ export default function LogisticLayout({
 
   // Initialize stores on mount
   useEffect(() => {
+    initializeSession();
     initializeFleetStore();
     initializeWalletStore();
-  }, [initializeFleetStore, initializeWalletStore]);
+  }, [initializeSession, initializeFleetStore, initializeWalletStore]);
+
+  const initials = user?.full_name
+    ? user.full_name.split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase()
+    : (user?.email?.substring(0, 2).toUpperCase() || 'LU');
 
   // Synchronize with real backend on activeFleetId change
   useEffect(() => {
@@ -93,14 +103,113 @@ export default function LogisticLayout({
   const sidebarLinks = [
     { name: 'Dashboard', href: '/logistic/dashboard', icon: LayoutDashboard },
     { name: 'My Vehicles', href: '/logistic/vehicles', icon: Truck },
-    // { name: 'Credit Requests', href: '/logistic/credit-requests', icon: FileText },
+    { name: 'Credit Requests', href: '/logistic/credit-requests', icon: FileText },
+    { name: 'My Payments', href: '/logistic/payments', icon: Banknote },
     { name: 'Transactions', href: '/logistic/transactions', icon: History },
     { name: 'Digital Vouchers', href: '/logistic/vouchers', icon: QrCode },
     { name: 'Fund Wallet / Payments', href: '/logistic/wallet', icon: Wallet },
     { name: 'Fuel History', href: '/logistic/fuel-history', icon: Activity },
     { name: 'Profile', href: '/logistic/profile', icon: User },
-    { name: 'Creadit Usage', href: '/logistic/udhaar', icon: CreditCard }
+    { name: 'Credit Usage', href: '/logistic/credit-usage', icon: CreditCard }
   ];
+
+  if (user && (user.verification_status === 'pending' || user.verification_status === 'rejected')) {
+    const isPending = user.verification_status === 'pending';
+
+    // Allow access to profile page even in pending/rejected state
+    if (pathname === '/logistic/profile') {
+      // fall through to render full layout
+    } else {
+      return (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+          {/* Glowing backdrop blobs */}
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl" />
+
+          <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 text-center shadow-2xl relative z-10">
+            <div className="flex justify-center mb-6">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center">
+                  {isPending ? (
+                    <Clock className="h-8 w-8 text-amber-500 animate-pulse" />
+                  ) : (
+                    <AlertTriangle className="h-8 w-8 text-rose-500" />
+                  )}
+                </div>
+                {isPending && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500"></span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <h2 className="text-xl font-extrabold text-white tracking-tight">
+              {isPending ? 'Verification Pending' : 'Verification Rejected'}
+            </h2>
+
+            <p className="text-sm font-semibold text-slate-400 mt-2 leading-relaxed">
+              {isPending
+                ? 'Your account is created. Please upload your KYC documents so our admin team can verify your account.'
+                : 'Your application has been rejected. Please re-upload your corrected documents.'}
+            </p>
+
+            {!isPending && user.verification_notes && (
+              <div className="mt-4 p-4 bg-rose-950/30 border border-rose-900/50 rounded-2xl text-left">
+                <p className="text-[10px] font-black text-rose-400 uppercase tracking-wider mb-1">Reason for Rejection</p>
+                <p className="text-xs text-rose-200/90 font-medium italic">&ldquo;{user.verification_notes}&rdquo;</p>
+              </div>
+            )}
+
+            {/* KYC Documents Checklist */}
+            {isPending && (
+              <div className="mt-5 p-4 bg-slate-800/50 border border-slate-700/60 rounded-2xl text-left space-y-2">
+                <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider mb-2">Documents Required</p>
+                {['GSTIN Certificate', 'Company PAN Card', 'Company Registration', 'Transport License / Permit'].map((doc, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-slate-700 border border-slate-600 text-[9px] font-black text-slate-400 flex items-center justify-center shrink-0">{i + 1}</span>
+                    <span className="text-[11px] font-semibold text-slate-300">{doc}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-col gap-3">
+              {/* Primary CTA */}
+              <button
+                onClick={() => router.push('/logistic/profile')}
+                className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-orange-500/15 cursor-pointer transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                {isPending ? 'Upload KYC Documents' : 'Re-upload Documents'}
+              </button>
+              {/* Refresh status */}
+              <button
+                onClick={() => {
+                  initializeSession();
+                  window.location.reload();
+                }}
+                className="w-full py-2.5 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]"
+              >
+                Check Approval Status
+              </button>
+              <button
+                onClick={async () => {
+                  const { logout } = useAuthStore.getState();
+                  await logout();
+                  router.push('/login');
+                }}
+                className="w-full py-2.5 bg-transparent hover:bg-slate-800/40 border border-slate-800 text-slate-500 rounded-xl text-xs font-bold cursor-pointer transition-all"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans antialiased text-slate-800">
@@ -164,11 +273,11 @@ export default function LogisticLayout({
             <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 font-bold flex items-center justify-center shadow-sm">
-                  VS
+                  {initials}
                 </div>
                 <div className="overflow-hidden">
-                  <h4 className="text-sm font-semibold text-slate-800 truncate">Vikram Singh</h4>
-                  <p className="text-xs text-slate-400 font-medium truncate">Logistics Head</p>
+                  <h4 className="text-sm font-semibold text-slate-800 truncate">{user?.full_name || user?.email || 'Logistic User'}</h4>
+                  <p className="text-xs text-slate-400 font-medium truncate">{user?.email || 'Operations'}</p>
                 </div>
               </div>
               <button
@@ -253,11 +362,11 @@ export default function LogisticLayout({
                 <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 font-bold flex items-center justify-center shadow-sm">
-                      VS
+                      {initials}
                     </div>
                     <div className="overflow-hidden">
-                      <h4 className="text-sm font-semibold text-slate-800 truncate">Vikram Singh</h4>
-                      <p className="text-xs text-slate-400 font-medium truncate">Logistics Head</p>
+                      <h4 className="text-sm font-semibold text-slate-800 truncate">{user?.full_name || user?.email || 'Logistic User'}</h4>
+                      <p className="text-xs text-slate-400 font-medium truncate">{user?.email || 'Operations'}</p>
                     </div>
                   </div>
                   <button
@@ -384,10 +493,10 @@ export default function LogisticLayout({
                 className="flex items-center gap-2.5 p-1 rounded-full md:pr-4 md:pl-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 transition-all cursor-pointer shrink-0"
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-bold flex items-center justify-center shadow-md shadow-orange-500/10 shrink-0">
-                  VS
+                  {initials}
                 </div>
                 <div className="hidden md:block text-left overflow-hidden max-w-[100px]">
-                  <p className="text-xs font-bold text-slate-800 leading-none truncate">Vikram Singh</p>
+                  <p className="text-xs font-bold text-slate-800 leading-none truncate">{user?.full_name || 'User'}</p>
                   <p className="text-[9px] font-bold text-slate-400 leading-none mt-1 uppercase tracking-wider">Logistics</p>
                 </div>
                 <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden md:block shrink-0" />
@@ -403,8 +512,8 @@ export default function LogisticLayout({
                     className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2 overflow-hidden"
                   >
                     <div className="px-3 py-2 border-b border-slate-100">
-                      <p className="text-xs font-bold text-slate-800">Vikram Singh</p>
-                      <p className="text-[10px] text-slate-400">Head of Operations</p>
+                      <p className="text-xs font-bold text-slate-800">{user?.full_name || 'Logistic Partner'}</p>
+                      <p className="text-[10px] text-slate-400">{user?.email || 'Operations'}</p>
                     </div>
                     <div className="mt-1.5 space-y-1">
                       <Link

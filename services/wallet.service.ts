@@ -89,79 +89,44 @@ export const walletService = {
   },
 
   /**
-   * Wallet Recharge Request
+   * Wallet Recharge Request (Instant Card / Online)
+   * pump_id = null for wallet top-ups (no pump needed)
+   * transaction_reference must contain "stripe" or "razorpay" for auto-approval
    */
   async recharge(
     amount: number,
     processor: 'stripe' | 'razorpay',
     cardNumLast4: string
   ): Promise<WalletTransaction> {
-    try {
-      const pumpId = this.getPumpId();
+    const refId = `${processor.toUpperCase()}-REF-${Math.floor(10000 + Math.random() * 90000)}`;
 
-      const payload = {
-        pump_id: pumpId,
+    const payload = {
+      pump_id: null,                    // wallet topup — no pump required
+      amount,
+      payment_type: 'wallet_topup',
+      transaction_reference: refId,    // contains "stripe" or "razorpay" → auto-approved
+      remarks: `Simulated ${processor === 'stripe' ? 'Stripe' : 'Razorpay'} card recharge ending in ${cardNumLast4}`,
+    };
+
+    console.log('[Recharge Payload]', payload);
+
+    await backendApi.post('/payment/request', payload);
+
+    const wallet = await this.getWallet();
+
+    return (
+      wallet.transactions[0] ?? {
+        id: `W-TXN-${Math.floor(100 + Math.random() * 900)}`,
         amount,
-        payment_type: 'wallet_topup',
-        transaction_reference:
-          `${processor.toUpperCase()}-REF-${Math.floor(
-            10000 + Math.random() * 90000
-          )}`,
-        remarks:
-          `Stripe/Razorpay Simulated Credit Card Recharge ending in ${cardNumLast4}`
-      };
-
-      console.log(
-        '[Recharge Payload]',
-        payload
-      );
-
-      await backendApi.post(
-        '/payment/request',
-        payload
-      );
-
-      const wallet =
-        await this.getWallet();
-
-      return (
-        wallet.transactions[0] ?? {
-          id: `W-TXN-${Math.floor(
-            100 + Math.random() * 900
-          )}`,
-          amount,
-          processor,
-          status: 'success',
-          referenceId:
-            `${processor.toUpperCase()}-REF-${Math.floor(
-              10000 + Math.random() * 90000
-            )}`,
-          date: new Date()
-            .toISOString()
-            .replace('T', ' ')
-            .substring(0, 16),
-          paymentMethod:
-            `${processor === 'stripe'
-              ? 'Visa'
-              : 'Mastercard'
-            } Ending in ${cardNumLast4}`,
-        }
-      );
-    } catch (err) {
-      console.warn(
-        '[walletService] recharge fallback.',
-        err
-      );
-
-      return useWalletStore
-        .getState()
-        .rechargeWallet(
-          amount,
-          processor,
-          cardNumLast4
-        );
-    }
+        processor,
+        status: 'approved',
+        referenceId: refId,
+        date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        paymentMethod: `${processor === 'stripe' ? 'Visa' : 'Mastercard'} Ending in ${cardNumLast4}`,
+      }
+    );
   },
+
 
   /**
    * Manual Payment Proof Request

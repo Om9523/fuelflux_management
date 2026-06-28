@@ -326,13 +326,27 @@ export default function VehiclesPage() {
           })}
         </AnimatePresence>
 
-        {filteredVehicles.length === 0 && (
-          <div className="col-span-full bg-white border border-slate-200 rounded-2xl py-12 px-4 text-center">
-            <Truck className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-sm font-bold text-slate-800">No vehicles match filters</h3>
-            <p className="text-xs text-slate-400 font-semibold mt-1">Try refining your search query or registering a new vehicle credentials.</p>
+        {fleetVehicles.length === 0 ? (
+          <div className="col-span-full bg-white border border-slate-200 rounded-3xl py-16 px-4 text-center shadow-sm">
+            <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+              <Truck className="h-8 w-8" />
+            </div>
+            <h3 className="text-base font-extrabold text-slate-800">No vehicles onboarded yet</h3>
+            <p className="text-xs text-slate-400 font-semibold mt-1.5 max-w-sm mx-auto leading-relaxed">
+              Before you can request fuel, you must onboard your vehicles. Click the button above to register your first vehicle.
+            </p>
           </div>
-        )}
+        ) : filteredVehicles.length === 0 ? (
+          <div className="col-span-full bg-white border border-slate-200 rounded-3xl py-16 px-4 text-center shadow-sm">
+            <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+              <Truck className="h-8 w-8" />
+            </div>
+            <h3 className="text-base font-extrabold text-slate-800">No vehicles match filters</h3>
+            <p className="text-xs text-slate-400 font-semibold mt-1.5 max-w-sm mx-auto leading-relaxed">
+              No registered fleet vehicle matches your search term or chosen filters. Try clearing inputs.
+            </p>
+          </div>
+        ) : null}
       </div>
       )}
 

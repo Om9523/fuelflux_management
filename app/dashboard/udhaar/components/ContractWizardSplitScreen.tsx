@@ -279,49 +279,62 @@ function Section({ title, step, children }: { title: string; step: string; child
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function ContractWizardSplitScreen({ pumpId, customerId, customerName, existingContract, onClose, onSuccess, logoUrl = null }: {
-  pumpId: number;
-  customerId: number;
+export default function ContractWizardSplitScreen({
+  pumpId, customerId, customerName, existingContract, onClose, onSuccess,
+  logoUrl = null, prefillData = null, onSubmitOverride,
+}: {
+  pumpId: string;
+  customerId: string;
   customerName: string;
   existingContract: UdhaarContract | null;
   onClose: () => void;
   onSuccess: () => void;
   logoUrl?: string | null;
+  prefillData?: Record<string, any> | null;
+  onSubmitOverride?: (payload: any) => Promise<void>;
 }) {
   const isAmend = !!existingContract;
   const [loading, setLoading] = useState(false);
   const docRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState<FormState>({
-    station_name: existingContract?.station_name || '',
-    org_name: existingContract?.org_name || '',
-    address: existingContract?.address || '',
-    gst_number: existingContract?.gst_number || '',
-    valid_to: existingContract?.valid_to?.split('T')[0] || '',
-    security_deposit: existingContract?.security_deposit?.toString() || '',
-    slip_booklets: [],
-    total_credit_limit: existingContract?.total_credit_limit?.toString() || '',
-    max_spending_slips: existingContract?.max_spending_slips?.toString() || '',
-    money_limit_per_fill: existingContract?.money_limit_per_fill?.toString() || '',
-    money_limit_per_day: existingContract?.money_limit_per_day?.toString() || '',
-    money_limit_per_cycle: existingContract?.money_limit_per_cycle?.toString() || '',
-    item_limits: [],
-    custom_conditions: [],
-    billing_frequency: existingContract?.billing_frequency || 'recurring',
-    bill_by: existingContract?.bill_by || 'customer',
-    billing_cycle: existingContract?.billing_cycle || 'monthly',
-    billing_start_date: existingContract?.billing_start_date?.split('T')[0] || '',
-    round_off: existingContract?.round_off || false,
-    require_meter_photo: existingContract?.require_meter_photo || false,
-    require_vehicle_photo: existingContract?.require_vehicle_photo || false,
-    require_fueling_video: existingContract?.require_fueling_video || false,
-    require_driver_verification: existingContract?.require_driver_verification || false,
-    sop_recipients: existingContract?.sop_recipients || [],
-    late_payment_interest: existingContract?.late_payment_interest?.toString() || '',
-    deposit_utilization_days: existingContract?.deposit_utilization_days?.toString() || '',
-    suspension_period_days: existingContract?.suspension_period_days?.toString() || '',
-    invoice_dispute_days: existingContract?.invoice_dispute_days?.toString() || '',
-    custom_terms: existingContract?.custom_terms || '',
+    station_name: existingContract?.station_name || prefillData?.station_name || '',
+    org_name: existingContract?.org_name || prefillData?.org_name || '',
+    address: existingContract?.address || prefillData?.address || '',
+    gst_number: existingContract?.gst_number || prefillData?.gst_number || '',
+    valid_to: existingContract?.valid_to?.split('T')[0] || prefillData?.valid_to?.split('T')[0] || '',
+    security_deposit: existingContract?.security_deposit?.toString() || prefillData?.security_deposit?.toString() || '',
+    slip_booklets: (prefillData?.slip_booklets || []).map((b: any) => ({
+      booklet_number: b.booklet_number || '', start_number: String(b.start_number ?? ''), end_number: String(b.end_number ?? ''),
+    })),
+    total_credit_limit: existingContract?.total_credit_limit?.toString() || prefillData?.total_credit_limit?.toString() || '',
+    max_spending_slips: existingContract?.max_spending_slips?.toString() || prefillData?.max_spending_slips?.toString() || '',
+    money_limit_per_fill: existingContract?.money_limit_per_fill?.toString() || prefillData?.money_limit_per_fill?.toString() || '',
+    money_limit_per_day: existingContract?.money_limit_per_day?.toString() || prefillData?.money_limit_per_day?.toString() || '',
+    money_limit_per_cycle: existingContract?.money_limit_per_cycle?.toString() || prefillData?.money_limit_per_cycle?.toString() || '',
+    item_limits: (prefillData?.item_limits || []).map((i: any) => ({
+      item_name: i.item_name || 'petrol', qty_per_fill: String(i.qty_per_fill ?? ''), qty_per_day: String(i.qty_per_day ?? ''), qty_per_cycle: String(i.qty_per_cycle ?? ''),
+    })),
+    custom_conditions: (prefillData?.custom_conditions || []).map((c: any) => ({
+      vehicle_type: c.vehicle_type || '', item_name: c.item_name || '', station_id: String(c.station_id ?? ''),
+      money_per_fill: String(c.money_per_fill ?? ''), money_per_day: String(c.money_per_day ?? ''), money_per_cycle: String(c.money_per_cycle ?? ''),
+      qty_per_fill: String(c.qty_per_fill ?? ''), qty_per_day: String(c.qty_per_day ?? ''), qty_per_cycle: String(c.qty_per_cycle ?? ''), max_slips: String(c.max_slips ?? ''),
+    })),
+    billing_frequency: existingContract?.billing_frequency || prefillData?.billing_frequency || 'recurring',
+    bill_by: existingContract?.bill_by || prefillData?.bill_by || 'customer',
+    billing_cycle: existingContract?.billing_cycle || prefillData?.billing_cycle || 'monthly',
+    billing_start_date: existingContract?.billing_start_date?.split('T')[0] || prefillData?.billing_start_date?.split('T')[0] || '',
+    round_off: existingContract?.round_off ?? prefillData?.round_off ?? false,
+    require_meter_photo: existingContract?.require_meter_photo ?? prefillData?.require_meter_photo ?? false,
+    require_vehicle_photo: existingContract?.require_vehicle_photo ?? prefillData?.require_vehicle_photo ?? false,
+    require_fueling_video: existingContract?.require_fueling_video ?? prefillData?.require_fueling_video ?? false,
+    require_driver_verification: existingContract?.require_driver_verification ?? prefillData?.require_driver_verification ?? false,
+    sop_recipients: existingContract?.sop_recipients || prefillData?.sop_recipients || [],
+    late_payment_interest: existingContract?.late_payment_interest?.toString() || prefillData?.late_payment_interest?.toString() || '',
+    deposit_utilization_days: existingContract?.deposit_utilization_days?.toString() || prefillData?.deposit_utilization_days?.toString() || '',
+    suspension_period_days: existingContract?.suspension_period_days?.toString() || prefillData?.suspension_period_days?.toString() || '',
+    invoice_dispute_days: existingContract?.invoice_dispute_days?.toString() || prefillData?.invoice_dispute_days?.toString() || '',
+    custom_terms: existingContract?.custom_terms || prefillData?.custom_terms || '',
   });
 
   const set = (k: keyof FormState, v: any) => setForm(f => ({ ...f, [k]: v }));
@@ -1197,7 +1210,7 @@ export default function ContractWizardSplitScreen({ pumpId, customerId, customer
       custom_conditions: form.custom_conditions.map(c => ({
         vehicle_type: c.vehicle_type || undefined,
         item_name: c.item_name || undefined,
-        station_id: c.station_id ? parseInt(c.station_id) : undefined,
+        station_id: c.station_id || undefined,
         max_slips: c.max_slips ? parseInt(c.max_slips) : undefined,
         money_per_fill: c.money_per_fill ? parseFloat(c.money_per_fill) : undefined,
         money_per_day: c.money_per_day ? parseFloat(c.money_per_day) : undefined,
@@ -1222,6 +1235,21 @@ export default function ContractWizardSplitScreen({ pumpId, customerId, customer
       invoice_dispute_days: form.invoice_dispute_days ? parseInt(form.invoice_dispute_days) : undefined,
       custom_terms: form.custom_terms || undefined,
     };
+    try {
+      if (onSubmitOverride) {
+        await onSubmitOverride(payload);
+        toast.success('Saved', 'Proceed to the next step');
+      } else if (isAmend) {
+        await amendContract(pumpId, existingContract!.id, payload);
+        toast.success('Contract Amended', 'New version created');
+      } else {
+        await issueContract(pumpId, payload);
+        toast.success('Contract Issued', 'Customer contract activated');
+      }
+      onSuccess(); onClose();
+    } catch (e: any) {
+      toast.error('Failed', e?.response?.data?.detail || 'Contract operation failed');
+    } finally { setLoading(false); }
     try {
       if (isAmend) {
         await amendContract(pumpId, existingContract!.id, payload);

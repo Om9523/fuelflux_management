@@ -7,7 +7,7 @@ import backendApi from '@/lib/backendApi';
 import { useFleetStore, LogisticVehicle, VehicleStatus } from '@/stores/fleet.store';
 
 export interface BackendVehicle {
-  id: number;
+  id: string;
   vehicle_plate: string;
   vehicle_type: string;
   make_model: string | null;
@@ -17,7 +17,7 @@ export interface BackendVehicle {
   credit_limit: number;
   outstanding_amount: number;
   is_active: boolean;
-  partner_id: number;
+  partner_id: string;
   created_at: string;
 }
 
@@ -26,7 +26,7 @@ function toLogisticVehicle(v: BackendVehicle): LogisticVehicle {
   const make = parts[0] || '';
   const model = parts.slice(1).join(' ') || '';
   return {
-    id: String(v.id),
+    id: v.id,
     vehicleNumber: v.vehicle_plate,
     vehicleType: (v.vehicle_type?.toLowerCase() as any) || 'truck',
     make,
@@ -109,12 +109,10 @@ export const vehiclesService = {
 
   async requestCreditAdjustment(vehicleId: string, newLimit: number): Promise<void> {
     try {
-      const numericId = parseInt(vehicleId, 10);
-      if (isNaN(numericId)) throw new Error('Non-numeric vehicle ID');
       await backendApi.post('/credit/request', {
-        vehicle_id: numericId,
+        vehicle_id: vehicleId,
         requested_limit: newLimit,
-        pump_id: 1,
+        pump_id: "1",
         remarks: `Credit limit increase request to ₹${newLimit.toLocaleString()}`,
       });
     } catch (err) {

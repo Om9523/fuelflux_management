@@ -422,6 +422,23 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {selectedRoles.includes('logistic') && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-left"
+              >
+                <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] font-bold text-amber-800">KYC Verification Required</span>
+                  <span className="text-[10px] text-amber-700 leading-relaxed font-semibold">
+                    To activate fuel vouchers, you will need to upload GSTIN, PAN, and Transport License documents in your profile dashboard for admin approval.
+                  </span>
+                </div>
+              </motion.div>
+            )}
+
+
             <div className="flex gap-3 mt-2 w-full">
               <Button
                 type="button"

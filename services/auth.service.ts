@@ -5,14 +5,20 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1
 
 // Validation schemas for security
 const UserDataSchema = z.object({
-  id: z.number().positive('Invalid user ID'),
+  id: z.string().min(1, 'Invalid user ID'),
   email: z.string().email('Invalid email'),
   phone: z.string(),
   name: z.string(),
+  full_name: z.string().optional(),
   roles: z.array(z.string()).min(1, 'User must have at least one role'),
   is_active: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
+  company_name: z.string().optional(),
+  gstin: z.string().optional(),
+  fleet_size: z.number().nullable().optional(),
+  verification_status: z.string().nullable().optional(),
+  verification_notes: z.string().nullable().optional(),
 });
 
 const AuthDataSchema = z.object({
@@ -43,14 +49,20 @@ export interface AuthResponse {
 }
 
 export interface UserData {
-  id: number;
+  id: string;
   email: string;
   phone: string;
   name: string;
+  full_name?: string;
   roles: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  company_name?: string;
+  gstin?: string;
+  fleet_size?: number | null;
+  verification_status?: string | null;
+  verification_notes?: string | null;
 }
 
 export interface RefreshTokenRequest {
@@ -76,6 +88,7 @@ export interface RegisterRequest {
 export interface OTPRequest {
   email?: string;
   phone?: string;
+  purpose?: string;
 }
 
 export interface VerifyOTPRequest {
@@ -354,7 +367,14 @@ class AuthService {
 
   async sendOTP(data: OTPRequest): Promise<{ message: string }> {
     try {
-      const response = await this.api.post('/auth/send-otp', data);
+      const identifier = data.email || data.phone;
+      if (!identifier) {
+        throw new Error('Email or phone is required to send OTP');
+      }
+      const response = await this.api.post('/auth/send-otp', {
+        identifier,
+        purpose: data.purpose || 'verification',
+      });
 
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to send OTP');
@@ -368,15 +388,25 @@ class AuthService {
     }
   }
 
-  async verifyOTP(data: VerifyOTPRequest): Promise<{ message: string }> {
+  async verifyOTP(data: VerifyOTPRequest): Promise<{ message: string; reset_token?: string }> {
     try {
-      const response = await this.api.post('/auth/verify-otp', data);
+      const identifier = data.email || data.phone;
+      if (!identifier) {
+        throw new Error('Email or phone is required to verify OTP');
+      }
+      const response = await this.api.post('/auth/verify-otp', {
+        identifier,
+        code: data.otp,
+      });
 
       if (!response.data.success) {
         throw new Error(response.data.message || 'Invalid OTP');
       }
 
-      return { message: response.data.message || 'OTP verified successfully' };
+      return {
+        message: response.data.message || 'OTP verified successfully',
+        reset_token: response.data.reset_token,
+      };
     } catch (error: any) {
       throw new Error(
         error.response?.data?.message || error.message || 'OTP verification failed. Please try again.'
@@ -386,9 +416,12 @@ class AuthService {
 
   async resetPassword(data: ResetPasswordRequest): Promise<{ message: string }> {
     try {
-      const response = await this.api.post('/auth/reset-password', data);
+      const response = await this.api.post('/auth/reset-password', {
+        token: data.token,
+        new_password: data.password,
+      });
 
-      if (!response.data.success) {
+      if (response.data.success === false) {
         throw new Error(response.data.message || 'Password reset failed');
       }
 

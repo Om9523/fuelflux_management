@@ -24,6 +24,7 @@ import { useWalletStore } from '@/stores/wallet.store';
 import { vehiclesService } from '@/services/vehicles.service';
 import { walletService } from '@/services/wallet.service';
 import { transactionsService } from '@/services/transactions.service';
+import { logisticService } from '@/services/logistic.service';
 
 export default function LogisticDashboard() {
   const { activeFleetId, fleets, vehicles, transactions, vouchers } = useFleetStore();
@@ -35,11 +36,25 @@ export default function LogisticDashboard() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        await Promise.all([
+        const [_, __, ___, profile] = await Promise.all([
           vehiclesService.getVehicles(),
           transactionsService.getTransactions(),
-          walletService.getWallet()
+          walletService.getWallet(),
+          logisticService.getProfile(),
+          logisticService.getVouchers()
         ]);
+        if (profile) {
+          useFleetStore.setState({
+            fleets: [{
+              id: activeFleetId,
+              name: profile.company_name || 'My Logistic Company',
+              gstin: profile.gstin || 'N/A',
+              billingAddress: profile.billing_address || 'N/A',
+              creditApproved: 1000000,
+              creditLimit: 1000000
+            }]
+          });
+        }
       } catch (err) {
         console.warn('[LogisticDashboard] Failed to sync real backend data:', err);
       } finally {

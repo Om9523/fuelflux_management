@@ -10,7 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface BackendCustomer {
-  id: number;
+  id: string;
   name: string;
   phone: string | null;
   vehicle_plate: string;
@@ -18,7 +18,7 @@ export interface BackendCustomer {
   credit_limit: number;
   outstanding_amount: number;
   is_fleet: boolean;
-  pump_id: number;
+  pump_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -30,11 +30,11 @@ export interface CustomerCreatePayload {
   vehicle_type?: string | null;
   credit_limit?: number;
   is_fleet?: boolean;
-  pump_id: number;
+  pump_id: string;
 }
 
 export interface RiskAlert {
-  customer_id: number;
+  customer_id: string;
   name: string;
   vehicle_plate: string;
   outstanding: number;
@@ -48,20 +48,20 @@ export interface RiskAlertsResponse {
 }
 
 export interface UdhaarCreatePayload {
-  customer_id: number;
+  customer_id: string;
   amount: number;
   description?: string | null;
   remarks?: string | null;
   fuel_type?: string | null;
   volume?: number | null;
   udhaar_type?: string;
-  pump_id?: number;
+  pump_id?: string;
   due_date?: string | null;
 }
 
 export interface UdhaarResponseData {
-  id: number;
-  customer_id: number;
+  id: string;
+  customer_id: string;
   amount: number;
   description: string | null;
   due_date: string | null;
@@ -70,11 +70,11 @@ export interface UdhaarResponseData {
 }
 
 export interface UdhaarHistoryItem {
-  id: number;
-  customer_id: number;
+  id: string;
+  customer_id: string;
   customer_name: string;
   vehicle_plate: string;
-  pump_id: number;
+  pump_id: string;
   amount: number;
   volume: number | null;
   fuel_type: string | null;
@@ -85,7 +85,7 @@ export interface UdhaarHistoryItem {
 }
 
 export interface OutstandingResponse {
-  customer_id: number;
+  customer_id: string;
   name: string;
   vehicle_plate: string;
   outstanding_amount: number;
@@ -108,7 +108,7 @@ export const crmService = {
   /**
    * Fetch all CRM customers for the specified pump
    */
-  async getCustomers(pumpId: number): Promise<BackendCustomer[]> {
+  async getCustomers(pumpId: string): Promise<BackendCustomer[]> {
     const res = await fetch(`${API_URL}/crm/customers?pump_id=${pumpId}`, {
       method: 'GET',
       headers: getAuthHeaders(),
@@ -141,7 +141,7 @@ export const crmService = {
   /**
    * Get risk alerts for the specified pump
    */
-  async getRiskAlerts(pumpId: number): Promise<RiskAlertsResponse> {
+  async getRiskAlerts(pumpId: string): Promise<RiskAlertsResponse> {
     const res = await fetch(`${API_URL}/crm/risk-alerts?pump_id=${pumpId}`, {
       method: 'GET',
       headers: getAuthHeaders(),
@@ -179,7 +179,7 @@ export const crmService = {
     return res.json();
   },
 
-  async deleteUdhaar(udhaarId: number): Promise<void> {
+  async deleteUdhaar(udhaarId: string): Promise<void> {
     const res = await fetch(`${API_URL}/udhaar/${udhaarId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
@@ -190,7 +190,7 @@ export const crmService = {
     }
   },
 
-  async getUdhaarHistory(customerId?: number): Promise<UdhaarHistoryItem[]> {
+  async getUdhaarHistory(customerId?: string): Promise<UdhaarHistoryItem[]> {
     const params = customerId ? `?customer_id=${customerId}` : '';
     const res = await fetch(`${API_URL}/udhaar/history${params}`, {
       method: 'GET',
@@ -203,7 +203,7 @@ export const crmService = {
     return res.json();
   },
 
-  async settleOutstanding(customerId: number, amount: number): Promise<any> {
+  async settleOutstanding(customerId: string, amount: number): Promise<any> {
     const res = await fetch(`${API_URL}/udhaar/settle/${customerId}?amount=${amount}`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -218,7 +218,7 @@ export const crmService = {
   /**
    * Get outstanding details for a customer
    */
-  async getOutstanding(customerId: number): Promise<OutstandingResponse> {
+  async getOutstanding(customerId: string): Promise<OutstandingResponse> {
     const res = await fetch(`${API_URL}/udhaar/outstanding/${customerId}`, {
       method: 'GET',
       headers: getAuthHeaders(),

@@ -66,10 +66,10 @@ import {
 // Maps physical dispensing nozzles -> item name (matched against StockItem.name)
 // TODO: replace with real nozzle config from pump settings if available
 const NOZZLES = [
-  { nozzle_id: 1, item_name: 'Petrol' },
-  { nozzle_id: 2, item_name: 'Petrol' },
-  { nozzle_id: 3, item_name: 'Diesel' },
-  { nozzle_id: 4, item_name: 'Diesel' },
+  { nozzle_id: '1', item_name: 'Petrol' },
+  { nozzle_id: '2', item_name: 'Petrol' },
+  { nozzle_id: '3', item_name: 'Diesel' },
+  { nozzle_id: '4', item_name: 'Diesel' },
 ];
 
 const SHIFT_PRESETS: { label: string; value: ShiftType; getStart: () => Date }[] = [
@@ -164,7 +164,7 @@ function PaymentBadge({ mode }: { mode: string }) {
 
 export default function SalesSectionPage() {
   const { selectedPump } = usePumpStore();
-  const pumpId = selectedPump?.id ? Number(selectedPump.id) : null;
+  const pumpId = selectedPump?.id || null;
 
   // ── Top-level tabs: Overview / Entries ──
   const [mainTab, setMainTab] = useState<'overview' | 'entries'>('overview');
@@ -427,7 +427,7 @@ export default function SalesSectionPage() {
         shift_id: activeShift ? activeShift.shift_id : null,
         sale_type: 'single',
         timestamp: fromLocalInputValue(nsTimestamp),
-        nozzle_id: nsNozzleId ? Number(nsNozzleId) : null,
+        nozzle_id: nsNozzleId || null,
         item_name: nsItemName,
         rate: nsRate,
         quantity: Number(nsQuantity),
@@ -438,7 +438,7 @@ export default function SalesSectionPage() {
         credit_slip_ref: nsCreditSlipRef || null,
         vehicle_number: nsVehicleNumber || null,
         vehicle_type: nsVehicleType || null,
-        attendant_id: nsAttendantId ? Number(nsAttendantId) : null,
+        attendant_id: nsAttendantId || null,
         remarks: nsRemarks || null,
         receipt_url: nsReceiptUrl || null,
       };
@@ -466,7 +466,7 @@ export default function SalesSectionPage() {
   const [shiftType, setShiftType] = useState<ShiftType>('morning');
   const [shiftStartTime, setShiftStartTime] = useState(toLocalInputValue(SHIFT_PRESETS[0].getStart()));
   const [shiftPoints, setShiftPoints] = useState<(ShiftPointIn & { auto?: boolean })[]>([]);
-  const [shiftPersonnelIds, setShiftPersonnelIds] = useState<number[]>([]);
+  const [shiftPersonnelIds, setShiftPersonnelIds] = useState<string[]>([]);
   const [startingShift, setStartingShift] = useState(false);
   const [lastClosedShift, setLastClosedShift] = useState<ShiftSummary | null>(null);
   const [loadingLastShift, setLoadingLastShift] = useState(false);
@@ -521,7 +521,7 @@ export default function SalesSectionPage() {
     });
   };
 
-  const togglePersonnel = (attendantId: number) => {
+  const togglePersonnel = (attendantId: string) => {
     setShiftPersonnelIds((prev) =>
       prev.includes(attendantId) ? prev.filter((id) => id !== attendantId) : [...prev, attendantId]
     );
@@ -687,7 +687,7 @@ export default function SalesSectionPage() {
       shift_id: activeShift.shift_id,
       sale_type: editorSaleType,
       timestamp: fromLocalInputValue(edTimestamp),
-      nozzle_id: edNozzleId ? Number(edNozzleId) : null,
+      nozzle_id: edNozzleId || null,
       item_name: edItemName,
       rate: edRate,
       quantity: Number(edQuantity),
@@ -698,7 +698,7 @@ export default function SalesSectionPage() {
       credit_slip_ref: edCreditSlipRef || null,
       vehicle_number: edVehicleNumber || null,
       vehicle_type: edVehicleType || null,
-      attendant_id: edAttendantId ? Number(edAttendantId) : null,
+      attendant_id: edAttendantId || null,
       remarks: edRemarks || null,
       receipt_url: edReceiptUrl || null,
     };
@@ -737,12 +737,12 @@ export default function SalesSectionPage() {
   // END SHIFT — final totallizer verification
   // ════════════════════════════════════════════════════════════
 
-  const [endReadings, setEndReadings] = useState<Record<number, { end_reading: string; testing_value: string }>>({});
+  const [endReadings, setEndReadings] = useState<Record<string, { end_reading: string; testing_value: string }>>({});
   const [endingShift, setEndingShift] = useState(false);
 
   const openEndShift = () => {
     if (!activeShift) return;
-    const initial: Record<number, { end_reading: string; testing_value: string }> = {};
+    const initial: Record<string, { end_reading: string; testing_value: string }> = {};
     activeShift.point_summaries.forEach((p) => {
       initial[p.nozzle_id] = {
         end_reading: p.end_reading != null ? String(p.end_reading) : String(p.start_reading),
@@ -753,7 +753,7 @@ export default function SalesSectionPage() {
     setIsEndShiftOpen(true);
   };
 
-  const updateEndReading = (nozzleId: number, field: 'end_reading' | 'testing_value', value: string) => {
+  const updateEndReading = (nozzleId: string, field: 'end_reading' | 'testing_value', value: string) => {
     setEndReadings((prev) => ({
       ...prev,
       [nozzleId]: { ...prev[nozzleId], [field]: value },
@@ -809,11 +809,11 @@ export default function SalesSectionPage() {
   // ITEM RATES — mid-shift update
   // ════════════════════════════════════════════════════════════
 
-  const [editableRates, setEditableRates] = useState<Record<number, string>>({});
+  const [editableRates, setEditableRates] = useState<Record<string, string>>({});
   const [savingRates, setSavingRates] = useState(false);
 
   const openRatesEditor = () => {
-    const initial: Record<number, string> = {};
+    const initial: Record<string, string> = {};
     dispensedItems.forEach((item) => {
       initial[item.id] = String(item.selling_rate);
     });

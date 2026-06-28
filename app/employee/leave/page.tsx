@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { CalendarClock, FileSpreadsheet, Hourglass, Info } from 'lucide-react';
@@ -24,11 +24,11 @@ export default function LeaveRequestsPage() {
 
   const getStatusBadge = (status: LeaveRecord['status']) => {
     switch (status) {
-      case 'Approved':
+      case 'approved':
         return 'bg-green-100 text-green-700';
-      case 'Rejected':
+      case 'rejected':
         return 'bg-red-100 text-red-700';
-      default: // Pending
+      default: // pending
         return 'bg-amber-100 text-amber-700';
     }
   };

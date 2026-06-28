@@ -1,7 +1,7 @@
 import { authService } from '@/services/auth.service';
 
 export interface ReconciliationResult {
-  pump_id: number;
+  pump_id: string;
   expected_amount: number;
   actual_amount: number;
   mismatch_amount: number;
@@ -10,14 +10,13 @@ export interface ReconciliationResult {
   message: string;
 }
 
-export const reconcileShiftAuto = async (pumpId: number | string, shiftDate: string) => {
-  const numericId = Number(pumpId);
+export const reconcileShiftAuto = async (pumpId: string, shiftDate: string) => {
   const response = await authService.getApi().post(
     `/reconciliation/shift`,
     null,
     {
       params: {
-        pump_id: numericId,
+        pump_id: pumpId,
         shift_date: shiftDate,
       },
     }
@@ -26,7 +25,7 @@ export const reconcileShiftAuto = async (pumpId: number | string, shiftDate: str
 };
 
 export const reconcileManual = async (payload: {
-  pump_id: number;
+  pump_id: string;
   expected_amount: number;
   actual_amount: number;
   remarks?: string;

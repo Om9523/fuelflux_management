@@ -7,35 +7,57 @@ import {
   FileText,
   Save,
   CheckCircle2,
-  Key
+  Key,
+  ShieldAlert,
+  XCircle,
+  AlertCircle,
+  FolderOpen
 } from 'lucide-react';
 import { useFleetStore } from '@/stores/fleet.store';
-import { logisticService } from '@/services/logistic.service';
+import { logisticService, BackendProfile, KycDocument } from '@/services/logistic.service';
 import { toast } from '@/components/feedback/Toast';
+import { FileUpload } from '@/components/ui/FileUpload';
 
 export default function ProfilePage() {
-  const { activeFleetId, fleets } = useFleetStore();
-
-  const activeFleet = fleets.find((f) => f.id === activeFleetId) || fleets[0];
-
   const [companyName, setCompanyName] = useState('');
   const [gstin, setGstin] = useState('');
   const [billingAddress, setBillingAddress] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // KYC and Verification States
+  const [documents, setDocuments] = useState<KycDocument[]>([]);
+  const [verificationStatus, setVerificationStatus] = useState<string>('pending');
+  const [verificationNotes, setVerificationNotes] = useState<string>('');
 
   // Policy Settings
   const [pinRequired, setPinRequired] = useState(true);
   const [restrictNightFill, setRestrictNightFill] = useState(false);
   const [allowCng, setAllowCng] = useState(true);
 
-  // Sync state with active fleet
-  useEffect(() => {
-    if (activeFleet) {
-      setCompanyName(activeFleet.name);
-      setGstin(activeFleet.gstin);
-      setBillingAddress(activeFleet.billingAddress);
+  // Load corporate profile from backend on mount
+  const fetchProfile = async () => {
+    try {
+      const data = await logisticService.getProfile();
+      if (data) {
+        setCompanyName(data.company_name || '');
+        setGstin(data.gstin || '');
+        setBillingAddress(data.billing_address || '');
+        setDocuments(data.kyc_documents || []);
+        setVerificationStatus(data.verification_status || 'pending');
+        setVerificationNotes(data.verification_notes || '');
+      }
+    } catch (err) {
+      toast.error('Failed to load corporate profile.');
+    } finally {
+      setLoading(false);
     }
-  }, [activeFleet]);
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
 
   const handleUpdateProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,9 +69,9 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       await logisticService.updateProfile({
-        name: companyName,
+        company_name: companyName,
         gstin,
-        billingAddress,
+        billing_address: billingAddress,
       });
       toast.success('Corporate configuration saved successfully.');
       setSaving(false);
@@ -58,6 +80,53 @@ export default function ProfilePage() {
       setSaving(false);
     }
   };
+
+  const handleDocUpload = async (docType: string, file: File) => {
+    try {
+      const res = await logisticService.uploadDocument(docType, file);
+      if (res.success) {
+        toast.success(`Uploaded ${docType.replace(/_/g, ' ').toUpperCase()} successfully.`);
+        const updatedProfile = await logisticService.getProfile();
+        if (updatedProfile) {
+          setDocuments(updatedProfile.kyc_documents || []);
+          setVerificationStatus(updatedProfile.verification_status || 'pending');
+          setVerificationNotes(updatedProfile.verification_notes || '');
+        }
+      }
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.detail || 'Failed to upload document.';
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    }
+  };
+
+  const handleDocRemove = async (docType: string) => {
+    try {
+      const res = await logisticService.deleteDocument(docType);
+      if (res.success) {
+        toast.success(`Removed document successfully.`);
+        const updatedProfile = await logisticService.getProfile();
+        if (updatedProfile) {
+          setDocuments(updatedProfile.kyc_documents || []);
+          setVerificationStatus(updatedProfile.verification_status || 'pending');
+          setVerificationNotes(updatedProfile.verification_notes || '');
+        }
+      }
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.detail || 'Failed to remove document.';
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    }
+  };
+
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -72,6 +141,46 @@ export default function ProfilePage() {
           </p>
         </div>
       </div>
+
+      {/* Verification Status Banner */}
+      {verificationStatus === 'pending' && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-start gap-3 shadow-sm">
+          <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-xs font-black text-amber-900 uppercase tracking-wide">Awaiting KYC Verification Approval</h4>
+            <p className="text-[11px] text-amber-700 font-semibold mt-1 leading-relaxed">
+              Your profile is currently under review by our administration team. You can still manage your vehicles and configurations, but you will not be able to generate fuel vouchers until approved.
+            </p>
+          </div>
+        </div>
+      )}
+      {verificationStatus === 'rejected' && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200/80 flex items-start gap-3 shadow-sm">
+          <XCircle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-xs font-black text-rose-900 uppercase tracking-wide">KYC Verification Rejected</h4>
+            {verificationNotes && (
+              <p className="text-[11px] text-rose-700 font-bold mt-1">
+                Reason: &ldquo;{verificationNotes}&rdquo;
+              </p>
+            )}
+            <p className="text-[11px] text-rose-600 font-semibold mt-1 leading-relaxed">
+              Please check your uploaded documents below, replace any incorrect or expired files, and click save to re-submit for approval.
+            </p>
+          </div>
+        </div>
+      )}
+      {verificationStatus === 'verified' && (
+        <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 flex items-start gap-3 shadow-sm">
+          <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-xs font-black text-emerald-900 uppercase tracking-wide">KYC Verified & Approved</h4>
+            <p className="text-[11px] text-emerald-700 font-semibold mt-1 leading-relaxed">
+              Your account has been fully verified. You can now purchase/request fuel vouchers, link bank accounts, and process transactions.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Company Settings Form (2/3 width) */}
@@ -135,6 +244,101 @@ export default function ProfilePage() {
               </button>
             </div>
           </form>
+
+          {/* KYC Verification Documents */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-5">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">KYC Verification Documents</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                  Required to activate fuel voucher requests
+                </p>
+              </div>
+              <span className={`text-[9px] font-black border px-2 py-0.5 rounded-md uppercase ${
+                verificationStatus === 'verified'
+                  ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
+                  : verificationStatus === 'rejected'
+                  ? 'bg-rose-50 text-rose-600 border-rose-100/50'
+                  : 'bg-amber-50 text-amber-600 border-amber-100/50'
+              }`}>
+                {verificationStatus}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* GSTIN Certificate */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">GSTIN Certificate *</label>
+                <FileUpload
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  onUpload={(file) => handleDocUpload('gstin_certificate', file)}
+                  onRemove={() => handleDocRemove('gstin_certificate')}
+                  currentFile={
+                    (() => {
+                      const doc = documents.find((d) => d.doc_type === 'gstin_certificate');
+                      return doc ? { name: doc.original_name, url: doc.file_url, uploadedAt: doc.uploaded_at } : null;
+                    })()
+                  }
+                  label="Upload GSTIN PDF/Image"
+                  compact
+                />
+              </div>
+
+              {/* PAN Card */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">Company PAN Card *</label>
+                <FileUpload
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  onUpload={(file) => handleDocUpload('pan_card', file)}
+                  onRemove={() => handleDocRemove('pan_card')}
+                  currentFile={
+                    (() => {
+                      const doc = documents.find((d) => d.doc_type === 'pan_card');
+                      return doc ? { name: doc.original_name, url: doc.file_url, uploadedAt: doc.uploaded_at } : null;
+                    })()
+                  }
+                  label="Upload PAN PDF/Image"
+                  compact
+                />
+              </div>
+
+              {/* Company Registration */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">Company Registration Certificate *</label>
+                <FileUpload
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  onUpload={(file) => handleDocUpload('company_registration', file)}
+                  onRemove={() => handleDocRemove('company_registration')}
+                  currentFile={
+                    (() => {
+                      const doc = documents.find((d) => d.doc_type === 'company_registration');
+                      return doc ? { name: doc.original_name, url: doc.file_url, uploadedAt: doc.uploaded_at } : null;
+                    })()
+                  }
+                  label="Upload Registration PDF/Image"
+                  compact
+                />
+              </div>
+
+              {/* Transport License */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">Transport License / Permit *</label>
+                <FileUpload
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  onUpload={(file) => handleDocUpload('transport_license', file)}
+                  onRemove={() => handleDocRemove('transport_license')}
+                  currentFile={
+                    (() => {
+                      const doc = documents.find((d) => d.doc_type === 'transport_license');
+                      return doc ? { name: doc.original_name, url: doc.file_url, uploadedAt: doc.uploaded_at } : null;
+                    })()
+                  }
+                  label="Upload License PDF/Image"
+                  compact
+                />
+              </div>
+            </div>
+          </div>
 
           {/* Refueling Authorization Policy */}
           <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">

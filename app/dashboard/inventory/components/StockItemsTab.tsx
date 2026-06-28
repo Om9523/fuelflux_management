@@ -63,8 +63,8 @@ export default function StockItemsTab() {
         setLoading(true);
         try {
             const [g, i] = await Promise.all([
-                fetchItemGroups(Number(selectedPump.id)),
-                fetchStockItems(Number(selectedPump.id)),
+                fetchItemGroups(selectedPump.id),
+                fetchStockItems(selectedPump.id),
             ]);
             setGroups(g);
             setItems(i);
@@ -86,7 +86,7 @@ export default function StockItemsTab() {
         }
         setSubmitting(true);
         try {
-            await createItemGroup({ ...gForm, pump_id: Number(selectedPump.id) } as ItemGroupCreate);
+            await createItemGroup({ ...gForm, pump_id: selectedPump.id } as ItemGroupCreate);
             toast.success('Item group created successfully');
             setIsGroupOpen(false);
             setGForm({ item_class: 'goods', tax_type: 'vat', rate_tax_type: 'after_tax', valuation_method: 'average_purchase_date', vat_rate: 0, surcharge_rate: 0, cess_rate: 0, additional_cess_rate: 0 });
@@ -107,7 +107,7 @@ export default function StockItemsTab() {
         }
         setSubmitting(true);
         try {
-            await createStockItem({ ...iForm, pump_id: Number(selectedPump.id) } as StockItemCreate);
+            await createStockItem({ ...iForm, pump_id: selectedPump.id } as StockItemCreate);
             toast.success('Stock item created successfully');
             setIsItemOpen(false);
             setIForm({ is_dispensed_item: true, unit: 'Liters', selling_rate: 0 });
@@ -489,7 +489,7 @@ export default function StockItemsTab() {
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Group</label>
-                                    <select value={iForm.group_id || ''} onChange={e => setIForm(p => ({ ...p, group_id: Number(e.target.value) || undefined }))}
+                                    <select value={iForm.group_id || ''} onChange={e => setIForm(p => ({ ...p, group_id: e.target.value || undefined }))}
                                         className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none bg-white">
                                         <option value="">— No Group —</option>
                                         {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}

@@ -25,6 +25,8 @@ import {
   LogOut,
   X,
   UserRound,
+  CreditCard,
+  QrCode,
 } from 'lucide-react';
 import { useSidebarStore } from '@/stores/sidebar.store';
 import { useAuthStore } from '@/stores/auth.store';
@@ -42,7 +44,7 @@ export const Sidebar: React.FC = () => {
     { label: 'Sales Register', href: '/dashboard/sales', icon: <Receipt className="h-5 w-5 shrink-0" /> },
     { label: 'Vehicle Logs', href: '/dashboard/vehicles', icon: <Car className="h-5 w-5 shrink-0" /> },
     { label: 'Hydrotesting', href: '/dashboard/hydrotesting', icon: <ShieldCheck className="h-5 w-5 shrink-0" /> },
-    // { label: 'Credit Approvals', href: '/dashboard/credit-approvals', icon: <Notebook className="h-5 w-5 shrink-0" /> },
+    { label: 'Credit Approvals', href: '/dashboard/credit-approvals', icon: <Notebook className="h-5 w-5 shrink-0" /> },
     { label: 'CRM', href: '/dashboard/crm', icon: <Users className="h-5 w-5 shrink-0" /> },
     {
       label: 'Credit Customers',
@@ -51,7 +53,9 @@ export const Sidebar: React.FC = () => {
     },
     { label: 'Inventory', href: '/dashboard/inventory', icon: <Layers className="h-5 w-5 shrink-0" /> },
     { label: 'Accounting', href: '/dashboard/accounting', icon: <Landmark className="h-5 w-5 shrink-0" /> },
+    { label: 'Subscription', href: '/dashboard/subscription', icon: <CreditCard className="h-5 w-5 shrink-0" /> },
     { label: 'Payment Approvals', href: '/dashboard/payment-approvals', icon: <Landmark className="h-5 w-5 shrink-0" /> },
+    { label: 'Voucher Approvals', href: '/dashboard/vouchers', icon: <QrCode className="h-5 w-5 shrink-0" /> },
     { label: 'Wallet & Terminal', href: '/dashboard/wallet', icon: <Wallet className="h-5 w-5 shrink-0" /> },
     { label: 'Reports Hub', href: '/dashboard/reports', icon: <FileText className="h-5 w-5 shrink-0" /> },
     { label: 'AI Assistant', href: '/dashboard/ai', icon: <Cpu className="h-5 w-5 shrink-0" /> },

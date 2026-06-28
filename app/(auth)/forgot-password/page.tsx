@@ -87,8 +87,8 @@ export default function ForgotPasswordPage() {
       return;
     }
     try {
-      await verifyOTP(identity, otpCode);
-      setVerifiedOtp(otpCode);
+      const res = await verifyOTP(identity, otpCode);
+      setVerifiedOtp(res?.reset_token || otpCode);
       toast.success('Verification successful!');
       setStep(3);
     } catch (err: any) {

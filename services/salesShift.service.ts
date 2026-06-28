@@ -8,7 +8,7 @@ export type PaymentMode = 'cash' | 'credit' | 'pos' | 'upi';
 export type SaleType = 'single' | 'batch';
 
 export interface ShiftPointIn {
-  nozzle_id: number;
+  nozzle_id: string;
   item_name: string;
   start_reading: number;
   testing_value: number;
@@ -16,14 +16,14 @@ export interface ShiftPointIn {
 }
 
 export interface ShiftPointOut extends ShiftPointIn {
-  id: number;
+  id: string;
   end_reading: number | null;
   sold_quantity?: number;
 }
 
 export interface Shift {
-  id: number;
-  pump_id: number;
+  id: string;
+  pump_id: string;
   shift_type: ShiftType;
   status: 'active' | 'closed';
   start_time: string;
@@ -32,7 +32,7 @@ export interface Shift {
 }
 
 export interface PointSummary {
-  nozzle_id: number;
+  nozzle_id: string;
   item_name: string;
   start_reading: number;
   end_reading: number | null;
@@ -54,8 +54,8 @@ export interface ItemSummary {
 }
 
 export interface ShiftSummary {
-  shift_id: number;
-  pump_id: number;
+  shift_id: string;
+  pump_id: string;
   shift_type: string;
   status: string;
   start_time: string;
@@ -70,12 +70,12 @@ export interface ShiftSummary {
 }
 
 export interface SaleLog {
-  id: number;
-  pump_id: number;
-  shift_id: number | null;
+  id: string;
+  pump_id: string;
+  shift_id: string | null;
   sale_type: SaleType;
   timestamp: string;
-  nozzle_id: number | null;
+  nozzle_id: string | null;
   item_name: string;
   rate: number;
   quantity: number;
@@ -87,18 +87,18 @@ export interface SaleLog {
   credit_slip_ref: string | null;
   vehicle_number: string | null;
   vehicle_type: string | null;
-  attendant_id: number | null;
+  attendant_id: string | null;
   remarks: string | null;
   receipt_url: string | null;
   created_at: string;
 }
 
 export interface SaleLogPayload {
-  pump_id: number;
-  shift_id?: number | null;
+  pump_id: string;
+  shift_id?: string | null;
   sale_type: SaleType;
   timestamp?: string;
-  nozzle_id?: number | null;
+  nozzle_id?: string | null;
   item_name: string;
   rate: number;
   quantity: number;
@@ -106,37 +106,37 @@ export interface SaleLogPayload {
   pos_machine?: string | null;
   billing_ref?: string | null;
   customer_name?: string | null;
-  customer_id?: number | null;
+  customer_id?: string | null;
   credit_slip_ref?: string | null;
   vehicle_number?: string | null;
   vehicle_type?: string | null;
-  attendant_id?: number | null;
+  attendant_id?: string | null;
   remarks?: string | null;
   receipt_url?: string | null;
 }
 
 export interface StartShiftPayload {
-  pump_id: number;
+  pump_id: string;
   shift_type: ShiftType;
   start_time: string;
   point_readings: ShiftPointIn[];
-  personnel_ids: number[];
+  personnel_ids: string[];
 }
 
 export interface EndShiftPayload {
-  shift_id: number;
-  end_readings: { nozzle_id: number; end_reading: number; testing_value?: number }[];
+  shift_id: string;
+  end_readings: { nozzle_id: string; end_reading: number; testing_value?: number }[];
 }
 
 export interface Attendant {
-  id: number;
+  id: string;
   name: string;
   phone: string | null;
   role: string;
 }
 
 export interface OverviewData {
-  pump_id: number;
+  pump_id: string;
   period_days: number;
   net_amount: number;
   credit_ratio: number;
@@ -147,7 +147,7 @@ export interface OverviewData {
   weekly_item_sales: Record<string, Record<string, number>>;
   monthly_payment_breakdown: Record<string, Record<string, number>>;
   recent_shifts: {
-    shift_id: number;
+    shift_id: string;
     shift_type: string;
     start_time: string;
     end_time: string | null;
@@ -157,8 +157,8 @@ export interface OverviewData {
 }
 
 export interface SaleLogFilters {
-  pump_id: number;
-  shift_id?: number;
+  pump_id: string;
+  shift_id?: string;
   customer_name?: string;
   vehicle_type?: string;
   vehicle_number?: string;
@@ -182,22 +182,22 @@ export async function endShift(payload: EndShiftPayload): Promise<ShiftSummary> 
   return res.data;
 }
 
-export async function getActiveShift(pumpId: number): Promise<{ active: boolean; shift: ShiftSummary | null }> {
+export async function getActiveShift(pumpId: string): Promise<{ active: boolean; shift: ShiftSummary | null }> {
   const res = await authService.getApi().get('/sales/shifts/active', { params: { pump_id: pumpId } });
   return res.data;
 }
 
-export async function getLastShift(pumpId: number): Promise<ShiftSummary> {
+export async function getLastShift(pumpId: string): Promise<ShiftSummary> {
   const res = await authService.getApi().get('/sales/shifts/last', { params: { pump_id: pumpId } });
   return res.data;
 }
 
-export async function getShiftSummary(shiftId: number): Promise<ShiftSummary> {
+export async function getShiftSummary(shiftId: string): Promise<ShiftSummary> {
   const res = await authService.getApi().get(`/sales/shifts/${shiftId}/summary`);
   return res.data;
 }
 
-export async function getShiftPoints(shiftId: number): Promise<ShiftPointOut[]> {
+export async function getShiftPoints(shiftId: string): Promise<ShiftPointOut[]> {
   const res = await authService.getApi().get(`/sales/shifts/${shiftId}/point-readings`);
   return res.data;
 }
@@ -219,28 +219,28 @@ export async function getSaleLogs(filters: SaleLogFilters): Promise<SaleLog[]> {
   return res.data;
 }
 
-export async function deleteSaleLog(logId: number): Promise<{ status: string; log_id: number }> {
+export async function deleteSaleLog(logId: string): Promise<{ status: string; log_id: string }> {
   const res = await authService.getApi().delete(`/sales/logs/${logId}`);
   return res.data;
 }
 
 // ─── Rates ──────────────────────────────────────────────────────
 
-export async function updateItemRate(pumpId: number, itemName: string, newRate: number) {
+export async function updateItemRate(pumpId: string, itemName: string, newRate: number) {
   const res = await authService.getApi().patch('/sales/rates', { pump_id: pumpId, item_name: itemName, new_rate: newRate });
   return res.data;
 }
 
 // ─── Overview ───────────────────────────────────────────────────
 
-export async function getSalesOverview(pumpId: number, days: number = 30): Promise<OverviewData> {
+export async function getSalesOverview(pumpId: string, days: number = 30): Promise<OverviewData> {
   const res = await authService.getApi().get('/sales/overview', { params: { pump_id: pumpId, days } });
   return res.data;
 }
 
 // ─── Attendants ─────────────────────────────────────────────────
 
-export async function getPumpAttendants(pumpId: number): Promise<Attendant[]> {
+export async function getPumpAttendants(pumpId: string): Promise<Attendant[]> {
   const res = await authService.getApi().get('/sales/attendants', { params: { pump_id: pumpId } });
   return res.data;
 }

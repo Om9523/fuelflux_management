@@ -10,7 +10,7 @@ import backendApi from '@/lib/backendApi';
 import { toast } from '@/components/feedback/Toast';
 
 interface FuelEntry {
-  id: number;
+  id: string;
   vehicle_plate: string;
   vehicle_type: string;
   make_model: string;

@@ -1,6 +1,6 @@
 // User and Authentication Types
 export interface UserData {
-  id: number;
+  id: string;
   email: string;
   phone: string;
   name: string;
@@ -86,13 +86,13 @@ export interface RefreshTokenResponse {
 
 // Dashboard & Business Models
 export interface Station {
-  id: number;
+  id: string;
   name: string;
   location: string;
   address: string;
   phone: string;
   email: string;
-  owner_id: number;
+  owner_id: string;
   status: 'active' | 'inactive' | 'maintenance';
   fuel_in_stock: number;
   created_at: string;
@@ -100,10 +100,10 @@ export interface Station {
 }
 
 export interface Vehicle {
-  id: number;
+  id: string;
   registration_number: string;
   vehicle_type: string;
-  owner_id: number;
+  owner_id: string;
   capacity: number;
   fuel_type: string;
   last_service_date: string;
@@ -113,10 +113,10 @@ export interface Vehicle {
 }
 
 export interface Transaction {
-  id: number;
+  id: string;
   transaction_type: 'sale' | 'purchase' | 'transfer';
-  user_id: number;
-  station_id?: number;
+  user_id: string;
+  station_id?: string;
   amount: number;
   fuel_quantity: number;
   transaction_date: string;
@@ -126,9 +126,9 @@ export interface Transaction {
 }
 
 export interface Employee {
-  id: number;
-  user_id: number;
-  station_id: number;
+  id: string;
+  user_id: string;
+  station_id: string;
   designation: string;
   hire_date: string;
   status: 'active' | 'inactive' | 'suspended';
@@ -137,8 +137,8 @@ export interface Employee {
 }
 
 export interface Wallet {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   balance: number;
   currency: string;
   last_updated: string;

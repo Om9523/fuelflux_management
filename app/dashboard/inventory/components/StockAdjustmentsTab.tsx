@@ -45,7 +45,7 @@ export default function StockAdjustmentsTab() {
     const [submitting, setSubmitting] = useState(false);
 
     // Form
-    const [itemId, setItemId] = useState<number>(0);
+    const [itemId, setItemId] = useState<string>('');
     const [reason, setReason] = useState<AdjustmentReason>('damage');
     const [quantity, setQuantity] = useState('');
     const [notes, setNotes] = useState('');
@@ -60,8 +60,8 @@ export default function StockAdjustmentsTab() {
         setLoading(true);
         try {
             const [adj, items] = await Promise.all([
-                fetchStockAdjustments(Number(selectedPump.id)),
-                fetchStockItems(Number(selectedPump.id)),
+                fetchStockAdjustments(selectedPump.id),
+                fetchStockItems(selectedPump.id),
             ]);
             setAdjustments(adj);
             setStockItems(items);
@@ -87,7 +87,7 @@ export default function StockAdjustmentsTab() {
         setSubmitting(true);
         try {
             await createStockAdjustment({
-                pump_id: Number(selectedPump.id),
+                pump_id: selectedPump.id,
                 item_id: itemId,
                 reason,
                 quantity: Number(quantity),
@@ -99,7 +99,7 @@ export default function StockAdjustmentsTab() {
                     : `Stock increased by ${quantity} ${selectedItem?.unit ?? ''}`
             );
             setIsOpen(false);
-            setItemId(0); setReason('damage'); setQuantity(''); setNotes('');
+            setItemId(''); setReason('damage'); setQuantity(''); setNotes('');
             load();
         } catch (e: any) {
             toast.error(e?.response?.data?.detail || 'Failed to save adjustment');
@@ -218,8 +218,8 @@ export default function StockAdjustmentsTab() {
                             <div>
                                 <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Stock Item *</label>
                                 <select
-                                    value={itemId || ''}
-                                    onChange={e => setItemId(Number(e.target.value))}
+                                    value={itemId}
+                                    onChange={e => setItemId(e.target.value)}
                                     className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none bg-white"
                                 >
                                     <option value="">— Select Item —</option>

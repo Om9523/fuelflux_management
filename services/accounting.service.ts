@@ -19,8 +19,8 @@ export type PartyCategory = 'customer' | 'supplier' | 'other';
 export type VoucherType = 'payment' | 'receipt' | 'contra' | 'journal';
 
 export interface AccountGroup {
-  id: number;
-  pump_id: number;
+  id: string;
+  pump_id: string;
   name: string;
   category: string | null;
   nature: AccountNature;
@@ -30,10 +30,10 @@ export interface AccountGroup {
 }
 
 export interface Account {
-  id: number;
-  pump_id: number;
-  group_id: number;
-  party_id: number | null;
+  id: string;
+  pump_id: string;
+  group_id: string;
+  party_id: string | null;
   name: string;
   alias: string | null;
   is_bank_account: boolean;
@@ -54,8 +54,8 @@ export interface BankDetails {
 }
 
 export interface Party {
-  id: number;
-  pump_id: number;
+  id: string;
+  pump_id: string;
   alias: string | null;
   category: PartyCategory;
   address: string | null;
@@ -64,14 +64,14 @@ export interface Party {
   pan: string | null;
   gst_number: string | null;
   primary_contact: string | null;
-  linked_account_id: number | null;
+  linked_account_id: string | null;
   is_active: boolean;
   created_at: string;
 }
 
 export interface VoucherEntry {
-  id: number;
-  account_id: number;
+  id: string;
+  account_id: string;
   account_name: string | null;
   debit_amount: number;
   credit_amount: number;
@@ -79,8 +79,8 @@ export interface VoucherEntry {
 }
 
 export interface Voucher {
-  id: number;
-  pump_id: number;
+  id: string;
+  pump_id: string;
   voucher_type: VoucherType;
   origin: string;
   narration: string | null;
@@ -91,14 +91,14 @@ export interface Voucher {
 }
 
 export interface BalanceSheetAccount {
-  account_id: number;
+  account_id: string;
   account_name: string;
   alias: string | null;
   current_balance: number;
 }
 
 export interface BalanceSheetGroup {
-  group_id: number;
+  group_id: string;
   group_name: string;
   nature: AccountNature;
   affects_gross_profit: boolean;
@@ -107,7 +107,7 @@ export interface BalanceSheetGroup {
 }
 
 export interface BalanceSheet {
-  pump_id: number;
+  pump_id: string;
   generated_at: string;
   income: BalanceSheetGroup[];
   expenditure: BalanceSheetGroup[];
@@ -120,7 +120,7 @@ export interface BalanceSheet {
 // ─── Create Payloads ──────────────────────────────────────────────────────────
 
 export interface CreateGroupPayload {
-  pump_id: number;
+  pump_id: string;
   name: string;
   category?: string;
   nature: AccountNature;
@@ -128,9 +128,9 @@ export interface CreateGroupPayload {
 }
 
 export interface CreateAccountPayload {
-  pump_id: number;
-  group_id: number;
-  party_id?: number;
+  pump_id: string;
+  group_id: string;
+  party_id?: string;
   name: string;
   alias?: string;
   is_bank_account: boolean;
@@ -139,7 +139,7 @@ export interface CreateAccountPayload {
 }
 
 export interface CreatePartyPayload {
-  pump_id: number;
+  pump_id: string;
   alias?: string;
   category: PartyCategory;
   address?: string;
@@ -151,24 +151,24 @@ export interface CreatePartyPayload {
 }
 
 export interface QuickVoucherPayload {
-  pump_id: number;
+  pump_id: string;
   voucher_type: VoucherType;
-  from_account_id: number;
-  to_account_id: number;
+  from_account_id: string;
+  to_account_id: string;
   amount: number;
   narration?: string;
   voucher_date?: string;
 }
 
 export interface JournalEntryLine {
-  account_id: number;
+  account_id: string;
   debit_amount: number;
   credit_amount: number;
   entry_order: number;
 }
 
 export interface JournalVoucherPayload {
-  pump_id: number;
+  pump_id: string;
   narration?: string;
   voucher_date?: string;
   entries: JournalEntryLine[];
@@ -177,45 +177,45 @@ export interface JournalVoucherPayload {
 // ─── API Functions ────────────────────────────────────────────────────────────
 
 // Account Groups
-export const getGroups = (pump_id: number): Promise<AccountGroup[]> =>
+export const getGroups = (pump_id: string): Promise<AccountGroup[]> =>
   api.get('/accounting/groups', { params: { pump_id } }).then(r => r.data);
 
 export const createGroup = (payload: CreateGroupPayload): Promise<AccountGroup> =>
   api.post('/accounting/groups', payload).then(r => r.data);
 
-export const deleteGroup = (group_id: number, pump_id: number): Promise<void> =>
+export const deleteGroup = (group_id: string, pump_id: string): Promise<void> =>
   api.delete(`/accounting/groups/${group_id}`, { params: { pump_id } }).then(r => r.data);
 
 // Accounts
-export const getAccounts = (pump_id: number, group_id?: number): Promise<Account[]> =>
+export const getAccounts = (pump_id: string, group_id?: string): Promise<Account[]> =>
   api.get('/accounting/accounts', { params: { pump_id, group_id } }).then(r => r.data);
 
 export const createAccount = (payload: CreateAccountPayload): Promise<Account> =>
   api.post('/accounting/accounts', payload).then(r => r.data);
 
-export const deleteAccount = (account_id: number, pump_id: number): Promise<void> =>
+export const deleteAccount = (account_id: string, pump_id: string): Promise<void> =>
   api.delete(`/accounting/accounts/${account_id}`, { params: { pump_id } }).then(r => r.data);
 
 // Parties
-export const getParties = (pump_id: number, category?: string): Promise<Party[]> =>
+export const getParties = (pump_id: string, category?: string): Promise<Party[]> =>
   api.get('/accounting/parties', { params: { pump_id, category } }).then(r => r.data);
 
 export const createParty = (payload: CreatePartyPayload): Promise<Party> =>
   api.post('/accounting/parties', payload).then(r => r.data);
 
-export const deleteParty = (party_id: number, pump_id: number): Promise<void> =>
+export const deleteParty = (party_id: string, pump_id: string): Promise<void> =>
   api.delete(`/accounting/parties/${party_id}`, { params: { pump_id } }).then(r => r.data);
 
 // Vouchers
 export const getVouchers = (
-  pump_id: number,
+  pump_id: string,
   voucher_type?: string,
   limit = 50,
   offset = 0
 ): Promise<Voucher[]> =>
   api.get('/accounting/vouchers', { params: { pump_id, voucher_type, limit, offset } }).then(r => r.data);
 
-export const getVoucherEntries = (voucher_id: number, pump_id: number): Promise<Voucher> =>
+export const getVoucherEntries = (voucher_id: string, pump_id: string): Promise<Voucher> =>
   api.get(`/accounting/vouchers/${voucher_id}/entries`, { params: { pump_id } }).then(r => r.data);
 
 export const createQuickVoucher = (payload: QuickVoucherPayload): Promise<Voucher> =>
@@ -225,5 +225,5 @@ export const createJournalVoucher = (payload: JournalVoucherPayload): Promise<Vo
   api.post('/accounting/vouchers/journal', payload).then(r => r.data);
 
 // Balance Sheet
-export const getBalanceSheet = (pump_id: number): Promise<BalanceSheet> =>
+export const getBalanceSheet = (pump_id: string): Promise<BalanceSheet> =>
   api.get('/accounting/balance-sheet', { params: { pump_id } }).then(r => r.data);

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -14,13 +14,14 @@ export default function AdminRouteLayout({
   const pathname = usePathname();
   const { isAdminAuthenticated, initializeAdminSession, isLoading } = useAdminStore();
 
+  const isLoginPage = pathname === '/admin/login';
+
+  // All hooks MUST be called before any early return (React rules of hooks)
   useEffect(() => {
     initializeAdminSession();
   }, [initializeAdminSession]);
 
-  const isLoginPage = pathname === '/admin/login';
-
-  // Client-side authentication guard backup
+  // Client-side authentication guard — only for non-login pages
   useEffect(() => {
     if (!isLoading && !isLoginPage) {
       const token = localStorage.getItem('fuelflux_admin_accessToken');
@@ -37,6 +38,14 @@ export default function AdminRouteLayout({
     }
   }, [isAdminAuthenticated, isLoginPage, router]);
 
+  // ─── Login page: render directly, no guards, no loading overlay ───
+  // Login page manages its own loading state via useAdminStore().isLoading
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
+
+  // ─── All other admin pages below ─────────────────────────────────
+
   if (isLoading && !isAdminAuthenticated) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-slate-50">
@@ -48,11 +57,6 @@ export default function AdminRouteLayout({
         </div>
       </div>
     );
-  }
-
-  // If on login page, don't wrap in AdminLayout shell
-  if (isLoginPage) {
-    return <>{children}</>;
   }
 
   // Prevent flash before redirect is finalized

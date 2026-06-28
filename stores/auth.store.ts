@@ -13,7 +13,7 @@ interface AuthState {
 
   login: (emailOrPhone: string, password: string, rememberMe: boolean) => Promise<{ rolesCount: number }>;
   registerUser: (formData: { email: string; phone: string; name: string; password: string }) => Promise<void>;
-  verifyOTP: (emailOrPhone: string, code: string) => Promise<void>;
+  verifyOTP: (emailOrPhone: string, code: string) => Promise<any>;
   sendOTP: (emailOrPhone: string) => Promise<void>;
   forgotPasswordRequest: (emailOrPhone: string) => Promise<void>;
   resetPassword: (emailOrPhone: string, newPassword: string, token: string) => Promise<void>;
@@ -166,11 +166,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailOrPhone);
-      await authService.verifyOTP({
+      const res = await authService.verifyOTP({
         ...(isEmail ? { email: emailOrPhone } : { phone: emailOrPhone }),
         otp: code,
       });
       set({ isLoading: false });
+      return res;
     } catch (err: any) {
       const errorMsg = err.message || 'OTP verification failed';
       set({ isLoading: false, error: errorMsg });
@@ -197,9 +198,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailOrPhone);
-      await authService.sendOTP(
-        isEmail ? { email: emailOrPhone } : { phone: emailOrPhone }
-      );
+      await authService.sendOTP({
+        ...(isEmail ? { email: emailOrPhone } : { phone: emailOrPhone }),
+        purpose: 'reset',
+      });
       set({ isLoading: false });
     } catch (err: any) {
       const errorMsg = err.message || 'Password reset request failed';

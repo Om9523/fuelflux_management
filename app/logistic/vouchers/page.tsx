@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   QrCode,
@@ -21,18 +21,23 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useFleetStore, QRVoucher, FuelType } from '@/stores/fleet.store';
-import { vouchersService } from '@/services/vouchers.service';
+import { logisticService } from '@/services/logistic.service';
+import { vehiclesService } from '@/services/vehicles.service';
 import { toast } from '@/components/feedback/Toast';
+import backendApi from '@/lib/backendApi';
 
 export default function VouchersPage() {
-  const { activeFleetId, vouchers, vehicles, requestVoucher } = useFleetStore();
+  const { activeFleetId, vouchers, vehicles } = useFleetStore();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [loading, setLoading] = useState(true);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [selectedPumpId, setSelectedPumpId] = useState('');
+  const [availablePumps, setAvailablePumps] = useState<any[]>([]);
   const [amount, setAmount] = useState<number>(5000);
   const [fuelType, setFuelType] = useState<FuelType>('diesel');
   const [notes, setNotes] = useState('');
@@ -40,6 +45,24 @@ export default function VouchersPage() {
 
   // Focus View State (QR Detail Card)
   const [focusedVoucher, setFocusedVoucher] = useState<QRVoucher | null>(null);
+
+  // Fetch real data on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        await vehiclesService.getVehicles();
+        await logisticService.getVouchers();
+        const res = await backendApi.get('/pumps');
+        setAvailablePumps(res.data || []);
+      } catch (err) {
+        toast.error('Failed to load fleet, pumps and vouchers data.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [activeFleetId]);
 
   const fleetVouchers = vouchers[activeFleetId] || [];
   const activeVehicles = (vehicles[activeFleetId] || []).filter(v => v.status === 'active');
@@ -57,8 +80,8 @@ export default function VouchersPage() {
 
   const handleRequestVoucherSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedVehicleId || amount <= 0) {
-      toast.error('Please enter a valid vehicle selection and amount.');
+    if (!selectedVehicleId || !selectedPumpId || amount <= 0) {
+      toast.error('Please enter a valid vehicle selection, pump selection and amount.');
       return;
     }
 
@@ -73,20 +96,22 @@ export default function VouchersPage() {
       const expiry = new Date();
       expiry.setDate(expiry.getDate() + 5); // 5 days validity
 
-      await vouchersService.requestVoucher({
+      await logisticService.requestVoucher({
         vehicleId: matchedVehicle.id,
         vehicleNumber: matchedVehicle.vehicleNumber,
         amount,
         fuelType,
         expiryDate: expiry.toISOString().split('T')[0],
-        notes
+        notes,
+        pumpId: selectedPumpId
       });
 
-      toast.success('Digital QR voucher requested. Pushed to CRM for audit approval.');
+      toast.success('Digital QR voucher requested. Dispatched to Pump Owner for approval.');
       setIsModalOpen(false);
 
       // Reset
       setSelectedVehicleId('');
+      setSelectedPumpId('');
       setAmount(5000);
       setNotes('');
       setRequesting(false);
@@ -104,6 +129,14 @@ export default function VouchersPage() {
   const handlePrintVoucher = (voucher: QRVoucher) => {
     toast.success(`Printing queue initialized for Digital Voucher: ${voucher.id}`);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -394,6 +427,23 @@ export default function VouchersPage() {
                     {activeVehicles.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.vehicleNumber} ({v.driverName} - {v.make})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Select Target Pump Station *</label>
+                  <select
+                    value={selectedPumpId}
+                    onChange={(e) => setSelectedPumpId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:bg-white focus:border-orange-500 cursor-pointer"
+                    required
+                  >
+                    <option value="">-- Choose target Pump --</option>
+                    {availablePumps.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.city})
                       </option>
                     ))}
                   </select>

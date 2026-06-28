@@ -11,7 +11,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface BackendPump {
-  id: number;
+  id: string;
   name: string;
   address: string;
   contact_number: string;
@@ -46,15 +46,15 @@ export interface WeeklyTrendPoint {
 }
 
 export interface TopAttendant {
-  id: number;
+  id: string;
   name: string;
   sold_liters: number;
   total_amount: number;
 }
 
 export interface ForecourtActivity {
-  id: number;
-  nozzle_id: number;
+  id: string;
+  nozzle_id: string;
   vehicle_plate: string | null;
   volume: number;
   amount: number;

@@ -45,7 +45,7 @@ function TypeBadge({ type }: { type: string }) {
 // ─── Add Customer Modal ───────────────────────────────────────────────────────
 
 function AddCustomerModal({ pumpId, onClose, onSuccess }: {
-    pumpId: number; onClose: () => void; onSuccess: () => void;
+    pumpId: string; onClose: () => void; onSuccess: () => void;
 }) {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -168,7 +168,7 @@ function AddCustomerModal({ pumpId, onClose, onSuccess }: {
 // ─── Add Vehicle Modal ────────────────────────────────────────────────────────
 
 function AddVehicleModal({ pumpId, customers, onClose, onSuccess }: {
-    pumpId: number;
+    pumpId: string;
     customers: CustomerListItem[];
     onClose: () => void;
     onSuccess: () => void;
@@ -206,7 +206,7 @@ function AddVehicleModal({ pumpId, customers, onClose, onSuccess }: {
         try {
             await createVehicle(pumpId, {
                 ...form,
-                customer_id: Number(form.customer_id),
+                customer_id: form.customer_id,
                 number_plate: form.number_plate.toUpperCase().trim(),
             });
             toast.success('Vehicle Added', `${form.number_plate.toUpperCase()} registered`);
@@ -339,7 +339,7 @@ function AddVehicleModal({ pumpId, customers, onClose, onSuccess }: {
 export default function UdhaarDirectoryPage() {
     const router = useRouter();
     const { selectedPump } = usePumpStore();
-    const pumpId = selectedPump?.id ? Number(selectedPump.id) : null;
+    const pumpId = selectedPump?.id || null;
 
     const [activeTab, setActiveTab] = useState<'customers' | 'vehicles'>('customers');
     const [search, setSearch] = useState('');
@@ -376,7 +376,7 @@ export default function UdhaarDirectoryPage() {
         else loadVehicles();
     }, [activeTab, loadCustomers, loadVehicles]);
 
-    const handleDeleteCustomer = async (id: number, name: string) => {
+    const handleDeleteCustomer = async (id: string, name: string) => {
         if (!pumpId || !confirm(`Delete ${name}? This cannot be undone.`)) return;
         try {
             await deleteCustomer(pumpId, id);
@@ -387,7 +387,7 @@ export default function UdhaarDirectoryPage() {
         }
     };
 
-    const handleDeleteVehicle = async (id: number, plate: string) => {
+    const handleDeleteVehicle = async (id: string, plate: string) => {
         if (!pumpId || !confirm(`Remove vehicle ${plate}?`)) return;
         try {
             await deleteVehicle(pumpId, id);

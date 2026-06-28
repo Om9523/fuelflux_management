@@ -33,7 +33,7 @@ function fmtDate(iso: string) {
 // ─── Empty line item ──────────────────────────────────────────────────────────
 
 const emptyLine = (): PurchaseLineCreate => ({
-    item_id: 0, quantity: 0, basic_rate: 0,
+    item_id: '', quantity: 0, basic_rate: 0,
     rebate: 0, vat_amount: 0, surcharge_amount: 0,
     cess_amount: 0, license_fees: 0, dealer_commission: 0,
 });
@@ -58,7 +58,7 @@ export default function StockPurchasesTab() {
     const [isOpen, setIsOpen] = useState(false);
     const [step, setStep] = useState(0);
     const [submitting, setSubmitting] = useState(false);
-    const [locking, setLocking] = useState<number | null>(null);
+    const [locking, setLocking] = useState<string | null>(null);
 
     // ── Form state ────────────────────────────────────────────────────────────
 
@@ -97,8 +97,8 @@ export default function StockPurchasesTab() {
         setLoading(true);
         try {
             const [p, items] = await Promise.all([
-                fetchStockPurchases(Number(selectedPump.id)),
-                fetchStockItems(Number(selectedPump.id)),
+                fetchStockPurchases(selectedPump.id),
+                fetchStockItems(selectedPump.id),
             ]);
             setPurchases(p);
             setStockItems(items);
@@ -158,7 +158,7 @@ export default function StockPurchasesTab() {
         setSubmitting(true);
         try {
             const payload: StockPurchaseCreate = {
-                pump_id: Number(selectedPump.id),
+                pump_id: selectedPump.id,
                 supplier_name: supplierName.trim(),
                 invoice_number: invoiceNo || undefined,
                 invoice_date: invoiceDate || undefined,
@@ -192,7 +192,7 @@ export default function StockPurchasesTab() {
 
     // ── Lock purchase ─────────────────────────────────────────────────────────
 
-    const handleLock = async (id: number) => {
+    const handleLock = async (id: string) => {
         setLocking(id);
         try {
             await lockStockPurchase(id);
@@ -207,7 +207,7 @@ export default function StockPurchasesTab() {
 
     // ── Delete purchase ───────────────────────────────────────────────────────
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (id: string) => {
         try {
             await deleteStockPurchase(id);
             toast.success('Purchase deleted');
@@ -423,7 +423,7 @@ export default function StockPurchasesTab() {
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div className="col-span-2">
                                                         <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Stock Item *</label>
-                                                        <select value={line.item_id || ''} onChange={e => updateLine(i, 'item_id', Number(e.target.value))}
+                                                        <select value={line.item_id || ''} onChange={e => updateLine(i, 'item_id', e.target.value)}
                                                             className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none bg-white">
                                                             <option value="">— Select Item —</option>
                                                             {stockItems.map(s => (

@@ -1,6 +1,5 @@
 /**
  * FILE LOCATION: src/services/inventory.service.ts
- * Uses authService.getApi() — same pattern as sales.service.ts
  */
 
 import { authService } from '@/services/auth.service';
@@ -16,8 +15,8 @@ export type AdjustmentReason = 'damage' | 'loss' | 'theft' | 'expired' | 'other'
 // ─── Item Group ─────────────────────────────────────────────────────────────
 
 export interface ItemGroup {
-    id: number;
-    pump_id: number;
+    id: string;
+    pump_id: string;
     name: string;
     item_class: ItemClass;
     category: string | null;
@@ -44,7 +43,7 @@ export interface ItemGroup {
 }
 
 export interface ItemGroupCreate {
-    pump_id: number;
+    pump_id: string;
     name: string;
     item_class?: ItemClass;
     category?: string;
@@ -70,9 +69,9 @@ export interface ItemGroupCreate {
 // ─── Stock Item ─────────────────────────────────────────────────────────────
 
 export interface StockItem {
-    id: number;
-    pump_id: number;
-    group_id: number | null;
+    id: string;
+    pump_id: string;
+    group_id: string | null;
     group_name: string | null;
     name: string;
     item_code: string | null;
@@ -95,8 +94,8 @@ export interface StockItem {
 }
 
 export interface StockItemCreate {
-    pump_id: number;
-    group_id?: number;
+    pump_id: string;
+    group_id?: string;
     name: string;
     item_code?: string;
     hsn_code?: string;
@@ -112,14 +111,14 @@ export interface StockItemCreate {
 }
 
 export interface SetRateRequest {
-    item_id: number;
+    item_id: string;
     selling_rate: number;
 }
 
 // ─── Purchase ───────────────────────────────────────────────────────────────
 
 export interface PurchaseLineCreate {
-    item_id: number;
+    item_id: string;
     quantity: number;
     basic_rate: number;
     rebate?: number;
@@ -131,8 +130,8 @@ export interface PurchaseLineCreate {
 }
 
 export interface PurchaseLineResponse {
-    id: number;
-    item_id: number;
+    id: string;
+    item_id: string;
     item_name: string | null;
     quantity: number;
     basic_rate: number;
@@ -146,7 +145,7 @@ export interface PurchaseLineResponse {
 }
 
 export interface StockPurchaseCreate {
-    pump_id: number;
+    pump_id: string;
     supplier_name: string;
     invoice_number?: string;
     invoice_date?: string;
@@ -170,8 +169,8 @@ export interface StockPurchaseCreate {
 }
 
 export interface StockPurchase {
-    id: number;
-    pump_id: number;
+    id: string;
+    pump_id: string;
     supplier_name: string;
     invoice_number: string | null;
     invoice_date: string | null;
@@ -201,17 +200,17 @@ export interface StockPurchase {
 // ─── Adjustment ─────────────────────────────────────────────────────────────
 
 export interface StockAdjustmentCreate {
-    pump_id: number;
-    item_id: number;
+    pump_id: string;
+    item_id: string;
     reason: AdjustmentReason;
     quantity: number;
     notes?: string;
 }
 
 export interface StockAdjustment {
-    id: number;
-    pump_id: number;
-    item_id: number;
+    id: string;
+    pump_id: string;
+    item_id: string;
     item_name: string | null;
     reason: AdjustmentReason;
     quantity: number;
@@ -222,7 +221,7 @@ export interface StockAdjustment {
 // ─── Summary ────────────────────────────────────────────────────────────────
 
 export interface StockSummaryRow {
-    item_id: number;
+    item_id: string;
     item_name: string;
     item_code: string | null;
     unit: string;
@@ -239,10 +238,10 @@ export interface StockSummaryRow {
 }
 
 export interface StockSummaryResponse {
-    pump_id: number;
+    pump_id: string;
     date_from: string | null;
     date_to: string | null;
-    group_id: number | null;
+    group_id: string | null;
     category: string | null;
     items: StockSummaryRow[];
     total_closing_value: number;
@@ -253,7 +252,7 @@ export interface StockSummaryResponse {
 const api = () => authService.getApi();
 
 // Groups
-export const fetchItemGroups = async (pump_id: number): Promise<ItemGroup[]> => {
+export const fetchItemGroups = async (pump_id: string): Promise<ItemGroup[]> => {
     const r = await api().get<ItemGroup[]>(`/inventory/groups?pump_id=${pump_id}`);
     return r.data;
 };
@@ -263,23 +262,23 @@ export const createItemGroup = async (data: ItemGroupCreate): Promise<ItemGroup>
     return r.data;
 };
 
-export const updateItemGroup = async (id: number, data: Partial<ItemGroupCreate>): Promise<ItemGroup> => {
+export const updateItemGroup = async (id: string, data: Partial<ItemGroupCreate>): Promise<ItemGroup> => {
     const r = await api().patch<ItemGroup>(`/inventory/groups/${id}`, data);
     return r.data;
 };
 
-export const deleteItemGroup = async (id: number): Promise<void> => {
+export const deleteItemGroup = async (id: string): Promise<void> => {
     await api().delete(`/inventory/groups/${id}`);
 };
 
 // Items
 export const fetchStockItems = async (
-    pump_id: number,
-    group_id?: number,
+    pump_id: string,
+    group_id?: string,
     category?: string
 ): Promise<StockItem[]> => {
-    const params = new URLSearchParams({ pump_id: String(pump_id) });
-    if (group_id) params.append('group_id', String(group_id));
+    const params = new URLSearchParams({ pump_id });
+    if (group_id) params.append('group_id', group_id);
     if (category) params.append('category', category);
     const r = await api().get<StockItem[]>(`/inventory/items?${params}`);
     return r.data;
@@ -290,7 +289,7 @@ export const createStockItem = async (data: StockItemCreate): Promise<StockItem>
     return r.data;
 };
 
-export const updateStockItem = async (id: number, data: Partial<StockItemCreate>): Promise<StockItem> => {
+export const updateStockItem = async (id: string, data: Partial<StockItemCreate>): Promise<StockItem> => {
     const r = await api().patch<StockItem>(`/inventory/items/${id}`, data);
     return r.data;
 };
@@ -300,17 +299,17 @@ export const setItemRates = async (rates: SetRateRequest[]): Promise<StockItem[]
     return r.data;
 };
 
-export const fetchItemTaxSettings = async (item_id: number): Promise<any> => {
+export const fetchItemTaxSettings = async (item_id: string): Promise<any> => {
     const r = await api().get(`/inventory/items/${item_id}/tax-settings`);
     return r.data;
 };
 
 // Purchases
 export const fetchStockPurchases = async (
-    pump_id: number,
+    pump_id: string,
     params?: { date_from?: string; date_to?: string; locked_only?: boolean }
 ): Promise<StockPurchase[]> => {
-    const p = new URLSearchParams({ pump_id: String(pump_id) });
+    const p = new URLSearchParams({ pump_id });
     if (params?.date_from) p.append('date_from', params.date_from);
     if (params?.date_to) p.append('date_to', params.date_to);
     if (params?.locked_only) p.append('locked_only', 'true');
@@ -323,22 +322,22 @@ export const createStockPurchase = async (data: StockPurchaseCreate): Promise<St
     return r.data;
 };
 
-export const lockStockPurchase = async (id: number): Promise<StockPurchase> => {
+export const lockStockPurchase = async (id: string): Promise<StockPurchase> => {
     const r = await api().post<StockPurchase>(`/inventory/purchases/${id}/lock`);
     return r.data;
 };
 
-export const deleteStockPurchase = async (id: number): Promise<void> => {
+export const deleteStockPurchase = async (id: string): Promise<void> => {
     await api().delete(`/inventory/purchases/${id}`);
 };
 
 // Adjustments
 export const fetchStockAdjustments = async (
-    pump_id: number,
-    params?: { item_id?: number; date_from?: string; date_to?: string }
+    pump_id: string,
+    params?: { item_id?: string; date_from?: string; date_to?: string }
 ): Promise<StockAdjustment[]> => {
-    const p = new URLSearchParams({ pump_id: String(pump_id) });
-    if (params?.item_id) p.append('item_id', String(params.item_id));
+    const p = new URLSearchParams({ pump_id });
+    if (params?.item_id) p.append('item_id', params.item_id);
     if (params?.date_from) p.append('date_from', params.date_from);
     if (params?.date_to) p.append('date_to', params.date_to);
     const r = await api().get<StockAdjustment[]>(`/inventory/adjustments?${p}`);
@@ -352,13 +351,13 @@ export const createStockAdjustment = async (data: StockAdjustmentCreate): Promis
 
 // Summary
 export const fetchStockSummary = async (
-    pump_id: number,
-    params?: { date_from?: string; date_to?: string; group_id?: number; category?: string }
+    pump_id: string,
+    params?: { date_from?: string; date_to?: string; group_id?: string; category?: string }
 ): Promise<StockSummaryResponse> => {
-    const p = new URLSearchParams({ pump_id: String(pump_id) });
+    const p = new URLSearchParams({ pump_id });
     if (params?.date_from) p.append('date_from', params.date_from);
     if (params?.date_to) p.append('date_to', params.date_to);
-    if (params?.group_id) p.append('group_id', String(params.group_id));
+    if (params?.group_id) p.append('group_id', params.group_id);
     if (params?.category) p.append('category', params.category);
     const r = await api().get<StockSummaryResponse>(`/inventory/summary?${p}`);
     return r.data;

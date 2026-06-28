@@ -3,7 +3,7 @@ import { create } from 'zustand';
 export interface WalletTransaction {
   id: string;
   amount: number;
-  processor: 'stripe' | 'razorpay';
+  processor: 'stripe' | 'razorpay' | 'manual';
   status: 'success' | 'failed' | 'processing';
   referenceId: string;
   date: string;
@@ -14,7 +14,7 @@ export interface AutoRechargeConfig {
   enabled: boolean;
   threshold: number;
   rechargeAmount: number;
-  paymentMethodId: string; // e.g. card_1234
+  paymentMethodId: string;
 }
 
 export interface FleetWallet {
@@ -30,40 +30,10 @@ interface WalletState {
   error: string | null;
 
   initializeWalletStore: () => void;
-  rechargeWallet: (amount: number, processor: 'stripe' | 'razorpay', cardNumLast4: string) => Promise<WalletTransaction>;
+  rechargeWallet: (amount: number, processor: 'stripe' | 'razorpay' | 'manual', cardNumLast4: string) => Promise<WalletTransaction>;
   updateAutoRecharge: (config: Partial<AutoRechargeConfig>) => void;
   deductWalletBalance: (amount: number) => boolean;
 }
-
-const SEED_WALLETS: Record<string, FleetWallet> = {
-  fleet_1: {
-    fleetId: 'fleet_1',
-    balance: 125500,
-    autoRecharge: {
-      enabled: true,
-      threshold: 30000,
-      rechargeAmount: 100000,
-      paymentMethodId: 'pm_card_visa_4242',
-    },
-    transactions: [
-      { id: 'W-TXN-101', amount: 100000, processor: 'stripe', status: 'success', referenceId: 'ch_3MvY8eLkdIwHu7ix2e8a1', date: '2026-05-20 11:24', paymentMethod: 'Visa Ending in 4242' },
-      { id: 'W-TXN-102', amount: 100000, processor: 'stripe', status: 'success', referenceId: 'ch_3MvY8eLkdIwHu7ix2e8a2', date: '2026-05-10 16:45', paymentMethod: 'Visa Ending in 4242' },
-    ],
-  },
-  fleet_2: {
-    fleetId: 'fleet_2',
-    balance: 18200, // Low balance trigger!
-    autoRecharge: {
-      enabled: false,
-      threshold: 15000,
-      rechargeAmount: 50000,
-      paymentMethodId: 'pm_card_master_9901',
-    },
-    transactions: [
-      { id: 'W-TXN-201', amount: 50000, processor: 'razorpay', status: 'success', referenceId: 'pay_LkdIwHu7ix2e8', date: '2026-05-18 14:10', paymentMethod: 'Mastercard Ending in 9901' },
-    ],
-  },
-};
 
 const KEYS = {
   WALLETS: 'fuelflux_logistic_wallets',
@@ -89,10 +59,11 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     const walletsJson = storage.getItem(KEYS.WALLETS);
     
     if (walletsJson) {
-      storedWallets = JSON.parse(walletsJson);
-    } else {
-      storedWallets = SEED_WALLETS;
-      storage.setItem(KEYS.WALLETS, JSON.stringify(SEED_WALLETS));
+      try {
+        storedWallets = JSON.parse(walletsJson);
+      } catch (e) {
+        storedWallets = {};
+      }
     }
 
     set({ wallets: storedWallets });
@@ -102,7 +73,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     // Mock network latency for Stripe/Razorpay encryption and capture
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const storage = getStorage();
     if (!storage) {
@@ -110,11 +81,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       throw new Error('Local storage not available');
     }
 
-    // Get current active fleet ID from fleet store (or default to fleet_1)
-    // To resolve cross-store access cleanly without direct circular imports, we query the DOM/localStorage or assume fleet_1
-    let activeFleetId = 'fleet_1';
+    let activeFleetId = 'fleet_current';
     if (typeof window !== 'undefined') {
-      activeFleetId = localStorage.getItem('fuelflux_logistic_active_fleet_id') || 'fleet_1';
+      activeFleetId = localStorage.getItem('fuelflux_logistic_active_fleet_id') || 'fleet_current';
     }
 
     const currentWallets = get().wallets;
@@ -130,9 +99,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       amount,
       processor,
       status: 'success',
-      referenceId: (processor === 'stripe' ? 'ch_' : 'pay_') + Math.random().toString(36).substr(2, 18),
+      referenceId: processor === 'manual' ? 'UTR-' + Math.random().toString(36).substring(2, 10).toUpperCase() : (processor === 'stripe' ? 'ch_' : 'pay_') + Math.random().toString(36).substring(2, 12),
       date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      paymentMethod: `${processor === 'stripe' ? 'Visa' : 'Mastercard'} Ending in ${cardNumLast4}`,
+      paymentMethod: processor === 'manual' ? 'Bank Transfer' : `${processor === 'stripe' ? 'Visa' : 'Mastercard'} Ending in ${cardNumLast4}`,
     };
 
     const updatedWallet: FleetWallet = {
@@ -159,14 +128,18 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     const storage = getStorage();
     if (!storage) return;
 
-    let activeFleetId = 'fleet_1';
+    let activeFleetId = 'fleet_current';
     if (typeof window !== 'undefined') {
-      activeFleetId = localStorage.getItem('fuelflux_logistic_active_fleet_id') || 'fleet_1';
+      activeFleetId = localStorage.getItem('fuelflux_logistic_active_fleet_id') || 'fleet_current';
     }
 
     const currentWallets = get().wallets;
-    const fleetWallet = currentWallets[activeFleetId];
-    if (!fleetWallet) return;
+    const fleetWallet = currentWallets[activeFleetId] || {
+      fleetId: activeFleetId,
+      balance: 0,
+      autoRecharge: { enabled: false, threshold: 20000, rechargeAmount: 50000, paymentMethodId: '' },
+      transactions: [],
+    };
 
     const updatedWallet: FleetWallet = {
       ...fleetWallet,
@@ -189,9 +162,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     const storage = getStorage();
     if (!storage) return false;
 
-    let activeFleetId = 'fleet_1';
+    let activeFleetId = 'fleet_current';
     if (typeof window !== 'undefined') {
-      activeFleetId = localStorage.getItem('fuelflux_logistic_active_fleet_id') || 'fleet_1';
+      activeFleetId = localStorage.getItem('fuelflux_logistic_active_fleet_id') || 'fleet_current';
     }
 
     const currentWallets = get().wallets;

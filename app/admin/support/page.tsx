@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useAdminStore } from '@/stores/admin.store';
@@ -190,7 +190,7 @@ export default function AdminSupportPage() {
 
               {/* Chat timeline */}
               <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/20">
-                {activeTicket.messages.map((msg, idx) => {
+                {activeTicket.messages.map((msg: any, idx: number) => {
                   const isAdmin = msg.sender === 'admin';
                   return (
                     <div key={idx} className={`flex gap-3 max-w-[80%] ${isAdmin ? 'ml-auto flex-row-reverse' : ''}`}>
