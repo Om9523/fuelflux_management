@@ -1,0 +1,1104 @@
+'use client';
+
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Wallet,
+  CreditCard,
+  X,
+  ArrowRight,
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+  Lock,
+  MapPin,
+  Building2,
+  Building,
+  User,
+  Check,
+  ArrowUpRight
+} from 'lucide-react';
+import { useWalletStore } from '@/stores/wallet.store';
+import { useFleetStore } from '@/stores/fleet.store';
+import { walletService } from '@/services/wallet.service';
+import { logisticService } from '@/services/logistic.service';
+import { toast } from '@/components/feedback/Toast';
+import backendApi from '@/lib/backendApi';
+import { FileUpload } from '@/components/ui/FileUpload';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface Pump {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  fuel_types: string[];
+  owner_name: string;
+  contact_number: string;
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function WalletPage() {
+  const { activeFleetId } = useFleetStore();
+  const { wallets } = useWalletStore();
+
+  const [loading, setLoading] = useState(true);
+
+  // Bank Account linking state
+  const [bankAccount, setBankAccount] = useState<any>(null);
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+
+  // Bank Form Fields
+  const [bankHolder, setBankHolder] = useState('');
+  const [bankNumber, setBankNumber] = useState('');
+  const [bankIfsc, setBankIfsc] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [bankUpi, setBankUpi] = useState('');
+  const [savingBank, setSavingBank] = useState(false);
+
+  React.useEffect(() => {
+    const fetchWalletAndBank = async () => {
+      setLoading(true);
+      try {
+        await walletService.getWallet();
+      } catch (err) {
+        console.warn('[WalletPage] Failed to fetch real backend wallet:', err);
+      }
+      try {
+        const bankData = await logisticService.getBankAccount();
+        setBankAccount(bankData);
+        if (bankData) {
+          setBankHolder(bankData.account_holder || '');
+          setBankNumber(bankData.account_number || '');
+          setBankIfsc(bankData.ifsc_code || '');
+          setBankName(bankData.bank_name || '');
+          setBankUpi(bankData.upi_id || '');
+        }
+      } catch (err) {
+        console.warn('[WalletPage] Failed to fetch bank account:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchWalletAndBank();
+  }, [activeFleetId]);
+
+
+  const fleetWallet = wallets[activeFleetId] || {
+    balance: 0,
+    autoRecharge: { enabled: false, threshold: 20000, rechargeAmount: 50000, paymentMethodId: '' },
+    transactions: [],
+  };
+
+  // ─── Payment Proof Modal State ──────────────────────────────────────────────
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [rechargeAmount, setRechargeAmount] = useState<number>(50000);
+  const [payStatus, setPayStatus] = useState<'idle' | 'processing_api' | 'success'>('idle');
+  const [progressMsg, setProgressMsg] = useState('');
+
+  // Pump selector
+  const [pumps, setPumps] = useState<Pump[]>([]);
+  const [loadingPumps, setLoadingPumps] = useState(false);
+  const [selectedPump, setSelectedPump] = useState<Pump | null>(null);
+
+  // Payment proof fields
+  const [transactionRef, setTransactionRef] = useState('');
+  const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [screenshotFile, setScreenshotFile] = useState<{ name: string; url: string } | null>(null);
+  const [rechargeType, setRechargeType] = useState<'online' | 'manual'>('online');
+  const [selectedCard, setSelectedCard] = useState('Visa ending in 4242');
+
+  // Logistic form data (for contract creation)
+  const [vehiclePlate, setVehiclePlate] = useState('');
+  const [vehicleType, setVehicleType] = useState('truck');
+  const [driverName, setDriverName] = useState('');
+  const [purpose, setPurpose] = useState('');
+
+  // ─── Auto-Recharge State ────────────────────────────────────────────────────
+  const [autoEnabled, setAutoEnabled] = useState(fleetWallet.autoRecharge.enabled);
+  const [autoThreshold, setAutoThreshold] = useState(fleetWallet.autoRecharge.threshold);
+  const [autoAmount, setAutoAmount] = useState(fleetWallet.autoRecharge.rechargeAmount);
+
+  // ─── Pump Fetching ──────────────────────────────────────────────────────────
+  const fetchPumps = async (search?: string) => {
+    setLoadingPumps(true);
+    try {
+      const params = search ? `?search=${encodeURIComponent(search)}` : '';
+      const { data } = await backendApi.get(`/pumps/${params}`);
+      setPumps(data);
+    } catch (err) {
+      console.error('[WalletPage] Failed to fetch pumps:', err);
+    } finally {
+      setLoadingPumps(false);
+    }
+  };
+
+  // ─── Open Modal ─────────────────────────────────────────────────────────────
+  const handleOpenPayment = (amountVal: number) => {
+    setRechargeAmount(amountVal);
+    setIsPayModalOpen(true);
+    setRechargeType('online');
+    setPayStatus('idle');
+    setProgressMsg('');
+    setTransactionRef('');
+    setScreenshotUrl('');
+    setScreenshotFile(null);
+    setSelectedPump(null);
+    setVehiclePlate('');
+    setVehicleType('truck');
+    setDriverName('');
+    setPurpose('');
+    fetchPumps();
+  };
+
+  // ─── Submit Manual Bank Transfer Proof ─────────────────────────────────────
+  const handlePaymentProof = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedPump) {
+      toast.error('Please select a pump station.');
+      return;
+    }
+    if (!transactionRef.trim()) {
+      toast.error('Transaction reference / UTR number is required.');
+      return;
+    }
+    if (rechargeAmount <= 0) {
+      toast.error('Please specify a valid amount.');
+      return;
+    }
+
+    setPayStatus('processing_api');
+    setProgressMsg('Submitting payment proof to pump owner for approval...');
+
+    const logisticFormData: Record<string, string> = {};
+    if (vehiclePlate.trim()) logisticFormData.vehicle_plate = vehiclePlate.trim();
+    if (vehicleType) logisticFormData.vehicle_type = vehicleType;
+    if (driverName.trim()) logisticFormData.driver_name = driverName.trim();
+    if (purpose.trim()) logisticFormData.purpose = purpose.trim();
+
+    try {
+      await backendApi.post('/payment/request', {
+        pump_id: selectedPump.id,
+        amount: rechargeAmount,
+        payment_type: 'manual_bank_transfer',
+        transaction_reference: transactionRef.trim(),
+        remarks: `Payment proof for ₹${rechargeAmount.toLocaleString('en-IN')} — Pump: ${selectedPump.name}`,
+        screenshot_url: screenshotUrl.trim() || null,
+        logistic_form_data: Object.keys(logisticFormData).length > 0 ? logisticFormData : null,
+      });
+
+      setPayStatus('success');
+      setProgressMsg('Payment proof submitted! Pump owner will review and create a contract.');
+      toast.success(`Payment proof for ₹${rechargeAmount.toLocaleString('en-IN')} submitted to ${selectedPump.name}.`);
+
+      setTimeout(() => {
+        setIsPayModalOpen(false);
+        setPayStatus('idle');
+      }, 1800);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Failed to submit payment proof.');
+      setPayStatus('idle');
+    }
+  };
+
+  // ─── Submit Online Card Recharge ────────────────────────────────────────────
+  const handleOnlineRechargeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (rechargeAmount <= 0) {
+      toast.error('Please specify a valid amount.');
+      return;
+    }
+
+    setPayStatus('processing_api');
+    setProgressMsg('Initiating secure card gateway simulation...');
+
+    try {
+      const cardLast4 = selectedCard.includes('4242') ? '4242' : '9901';
+      const processor = selectedCard.includes('4242') ? 'stripe' : 'razorpay';
+
+      await walletService.recharge(rechargeAmount, processor as any, cardLast4);
+
+      setPayStatus('success');
+      setProgressMsg('Instant card payment approved! Prepaid wallet credited.');
+      toast.success(`Instantly recharged ₹${rechargeAmount.toLocaleString('en-IN')} via Card.`);
+
+      // Sync wallet balance
+      await walletService.getWallet();
+
+      setTimeout(() => {
+        setIsPayModalOpen(false);
+        setPayStatus('idle');
+      }, 1800);
+    } catch (err: any) {
+      toast.error(err?.message || 'Card payment failed.');
+      setPayStatus('idle');
+    }
+  };
+
+  // ─── Auto-Recharge Save ─────────────────────────────────────────────────────
+  const handleSaveAutoRecharge = async () => {
+    try {
+      await walletService.updateAutoRechargeSettings({
+        enabled: autoEnabled,
+        threshold: autoThreshold,
+        rechargeAmount: autoAmount,
+      });
+      toast.success('Auto-Recharge rules updated successfully.');
+    } catch (err) {
+      toast.error('Failed to configure auto-billing.');
+    }
+  };
+
+  // ─── Payment Screenshot Upload / Remove ────────────────────────────────────
+  const handleScreenshotUpload = async (file: File) => {
+    try {
+      const res = await logisticService.uploadDocument('payment_screenshot', file);
+      if (res.success) {
+        setScreenshotUrl(res.document.file_url);
+        setScreenshotFile({ name: res.document.original_name, url: res.document.file_url });
+        toast.success('Receipt screenshot uploaded successfully.');
+      }
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.detail || 'Failed to upload screenshot.';
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    }
+  };
+
+  const handleScreenshotRemove = async () => {
+    try {
+      await logisticService.deleteDocument('payment_screenshot');
+      setScreenshotUrl('');
+      setScreenshotFile(null);
+      toast.success('Receipt screenshot removed.');
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.detail || 'Failed to remove screenshot.';
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    }
+  };
+
+  // ─── Link / Save Bank Account Details ──────────────────────────────────────
+  const handleSaveBankAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bankHolder.trim() || !bankNumber.trim() || !bankIfsc.trim() || !bankName.trim()) {
+      toast.error('Please fill in all required fields (Account Holder, Number, IFSC, and Bank Name).');
+      return;
+    }
+
+    setSavingBank(true);
+    try {
+      const res = await logisticService.updateBankAccount({
+        account_holder: bankHolder,
+        account_number: bankNumber,
+        ifsc_code: bankIfsc,
+        bank_name: bankName,
+        upi_id: bankUpi,
+      });
+      setBankAccount(res);
+      setIsBankModalOpen(false);
+      toast.success('Bank account details saved successfully!');
+    } catch (err: any) {
+      toast.error('Failed to save bank account details.');
+    } finally {
+      setSavingBank(false);
+    }
+  };
+
+
+  // ─── Loading Skeleton ───────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-10 bg-slate-200 rounded-xl w-1/4" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="h-64 bg-slate-200 rounded-3xl" />
+          <div className="lg:col-span-2 h-64 bg-slate-200 rounded-3xl" />
+        </div>
+        <div className="h-32 bg-slate-200 rounded-3xl" />
+        <div className="h-64 bg-slate-200 rounded-3xl" />
+      </div>
+    );
+  }
+
+  // ─── Main Render ────────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Fund Wallet / Payments
+          </h1>
+          <p className="text-sm font-semibold text-slate-400 mt-1">
+            Submit payment proofs to pump owners, configure auto-recharge, and monitor wallet history
+          </p>
+        </div>
+      </div>
+
+      {/* Main Grid: Balance & Auto-Recharge */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Balance Card */}
+        <div className="lg:col-span-1 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-6 flex flex-col justify-between">
+          <div>
+            <span className="text-[10px] font-black bg-orange-50 text-orange-600 border border-orange-100/50 px-2 py-0.5 rounded-md uppercase">
+              Operational Wallet
+            </span>
+            <div className="flex items-center gap-3.5 mt-4">
+              <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-600 flex items-center justify-center">
+                <Wallet className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Available Balance</p>
+                <h2 className="text-2xl font-black text-slate-900 mt-0.5">
+                  ₹{fleetWallet.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h2>
+              </div>
+            </div>
+
+            {fleetWallet.balance < 25000 && (
+              <div className="mt-4 p-3.5 bg-rose-50/50 border border-rose-100 rounded-xl flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                <p className="text-[10px] font-bold text-rose-600 leading-normal">
+                  Low balance. Top up to prevent driver card lockouts.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Recharge Presets */}
+          <div className="space-y-2 border-t border-slate-100 pt-5">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quick payment amounts</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {[25000, 50000, 100000].map((amt) => (
+                <button
+                  key={amt}
+                  onClick={() => handleOpenPayment(amt)}
+                  className="py-2 px-1 bg-slate-50 border border-slate-200 hover:border-orange-500/30 hover:bg-orange-50 text-slate-700 hover:text-orange-500 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                >
+                  +₹{amt / 1000}k
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => handleOpenPayment(0)}
+              className="w-full py-2.5 mt-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+            >
+              Submit Payment Proof
+            </button>
+          </div>
+        </div>
+
+        {/* Auto Recharge Settings */}
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-5">
+          <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Auto-Recharge ECS Settings</h3>
+              <p className="text-xs font-semibold text-slate-400 mt-0.5">Automatically trigger settlement drafts when fuel balances run low</p>
+            </div>
+            <div className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoEnabled}
+                onChange={(e) => setAutoEnabled(e.target.checked)}
+                className="sr-only peer"
+                id="autoRechargeToggle"
+              />
+              <label
+                htmlFor="autoRechargeToggle"
+                className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500 cursor-pointer"
+              />
+            </div>
+          </div>
+
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-5 transition-opacity duration-300 ${autoEnabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-bold text-slate-500">
+                <label>Low Balance Threshold</label>
+                <span className="text-slate-900">₹{autoThreshold.toLocaleString()}</span>
+              </div>
+              <input
+                type="range" min="10000" max="50000" step="5000"
+                value={autoThreshold}
+                onChange={(e) => setAutoThreshold(Number(e.target.value))}
+                className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-orange-500"
+              />
+              <span className="block text-[10px] text-slate-400 font-semibold">Triggers recharge when wallet drops below threshold.</span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">Auto top-up value (INR)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                <input
+                  type="number"
+                  value={autoAmount}
+                  onChange={(e) => setAutoAmount(Number(e.target.value))}
+                  className="w-full pl-7 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:bg-white focus:border-orange-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end border-t border-slate-100 pt-4">
+            <button
+              onClick={handleSaveAutoRecharge}
+              className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-md shadow-orange-500/10 transition-all cursor-pointer"
+            >
+              Save Configuration
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Linked Cards */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+        <h3 className="text-base font-bold text-slate-900 mb-3">Linked Corporate Payment Accounts</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[
+            { label: 'Visa ending in 4242', sub: 'Corporate Fleet card (Apex Logistics)', color: 'orange', primary: true },
+            { label: 'Mastercard ending in 9901', sub: 'Backup payment method', color: 'blue', primary: false },
+          ].map((card) => (
+            <div key={card.label} className="border border-slate-200/80 hover:border-orange-500/30 rounded-2xl p-4 bg-slate-50 flex items-center justify-between transition-all">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl bg-${card.color}-50 text-${card.color}-600 flex items-center justify-center`}>
+                  <CreditCard className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">{card.label}</p>
+                  <p className="text-[10px] text-slate-400 font-semibold">{card.sub}</p>
+                </div>
+              </div>
+              {card.primary
+                ? <span className="px-2 py-0.5 bg-orange-50 text-orange-600 border border-orange-100 rounded-md text-[9px] font-extrabold uppercase">Primary</span>
+                : <button className="text-xs font-bold text-slate-400 hover:text-slate-600 cursor-pointer">Set Primary</button>
+              }
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Linked Settlement Bank Account */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">Linked Settlement Bank Account</h3>
+            <p className="text-xs font-semibold text-slate-400 mt-0.5">
+              Link your corporate bank account for refunds, settlements, and manual UTR bank transfers
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              if (bankAccount) {
+                setBankHolder(bankAccount.account_holder || '');
+                setBankNumber(bankAccount.account_number || '');
+                setBankIfsc(bankAccount.ifsc_code || '');
+                setBankName(bankAccount.bank_name || '');
+                setBankUpi(bankAccount.upi_id || '');
+              }
+              setIsBankModalOpen(true);
+            }}
+            className="px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 text-xs font-bold rounded-xl border border-orange-200/50 shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            {bankAccount?.account_number ? 'Edit Bank Account' : 'Link Bank Account'}
+          </button>
+        </div>
+
+        {bankAccount?.account_number ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="border border-slate-200/80 rounded-2xl p-4 bg-slate-50 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                <Building className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Bank Details</p>
+                <p className="text-xs font-bold text-slate-800 mt-1 truncate">{bankAccount.bank_name}</p>
+                <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                  IFSC: <span className="font-mono">{bankAccount.ifsc_code}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="border border-slate-200/80 rounded-2xl p-4 bg-slate-50 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <User className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Account Holder</p>
+                <p className="text-xs font-bold text-slate-800 mt-1 truncate">{bankAccount.account_holder}</p>
+                <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                  A/C: <span className="font-mono">•••• {bankAccount.account_number.slice(-4)}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="border border-slate-200/80 rounded-2xl p-4 bg-slate-50 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <Check className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Verification Status</p>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold text-emerald-700">Verified</span>
+                </div>
+                {bankAccount.upi_id && (
+                  <p className="text-[10px] font-bold text-slate-500 font-mono mt-1">UPI: {bankAccount.upi_id}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
+            <Building className="h-8 w-8 text-slate-400 mx-auto" />
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-slate-700">No settlement bank account linked</p>
+              <p className="text-[10px] text-slate-400 font-semibold max-w-md mx-auto">
+                Link your bank account to enable direct credit refunds, automated withdrawal payouts, and faster verification of manual UTR transfers.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+
+      {/* Wallet Settlement Audit Logs */}
+      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-100">
+          <h3 className="text-base font-bold text-slate-900">Wallet settlement audit logs</h3>
+          <p className="text-xs font-semibold text-slate-400 mt-0.5">All payment proofs submitted to pump owners</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                <th className="p-4 pl-6">Reference ID</th>
+                <th className="p-4">Payment Method</th>
+                <th className="p-4">Payment Hub</th>
+                <th className="p-4 text-right">Recharge amount</th>
+                <th className="p-4">Status</th>
+                <th className="p-4 pr-6">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+              {fleetWallet.transactions.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-400 font-bold">No payment history yet.</td>
+                </tr>
+              ) : fleetWallet.transactions.map((txn) => (
+                <tr key={txn.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="p-4 pl-6 font-bold text-slate-400">{txn.referenceId}</td>
+                  <td className="p-4 font-bold text-slate-800">{txn.paymentMethod}</td>
+                  <td className="p-4">
+                    {txn.processor === 'stripe'
+                      ? <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-md text-[9px] font-bold uppercase">Stripe API</span>
+                      : <span className="px-2 py-0.5 bg-orange-50 text-orange-600 border border-orange-100 rounded-md text-[9px] font-bold uppercase">Razorpay Hub</span>
+                    }
+                  </td>
+                  <td className="p-4 text-right font-black text-slate-900">₹{txn.amount.toLocaleString()}</td>
+                  <td className="p-4">
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-md text-[9px] font-black uppercase">{txn.status}</span>
+                  </td>
+                  <td className="p-4 pr-6 text-slate-400 whitespace-nowrap">{txn.date}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── PAYMENT PROOF MODAL ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {isPayModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => { if (payStatus === 'idle') setIsPayModalOpen(false); }}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-slate-900 text-white border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 max-h-[90vh] flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-white/10 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-orange-500" />
+                  <div>
+                    <h3 className="text-sm font-extrabold tracking-tight">Submit Payment Proof</h3>
+                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-wider">
+                      Select pump → enter UTR → submit
+                    </p>
+                  </div>
+                </div>
+                {payStatus === 'idle' && (
+                  <button
+                    onClick={() => setIsPayModalOpen(false)}
+                    className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Recharge Mode Tabs */}
+              {payStatus === 'idle' && (
+                <div className="flex border-b border-white/10 px-5 bg-black/10 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setRechargeType('online')}
+                    className={`flex-1 py-3 text-center text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                      rechargeType === 'online'
+                        ? 'border-orange-500 text-white'
+                        : 'border-transparent text-white/50 hover:text-white'
+                    }`}
+                  >
+                    Instant Online Card
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRechargeType('manual')}
+                    className={`flex-1 py-3 text-center text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                      rechargeType === 'manual'
+                        ? 'border-orange-500 text-white'
+                        : 'border-transparent text-white/50 hover:text-white'
+                    }`}
+                  >
+                    Bank Transfer Proof
+                  </button>
+                </div>
+              )}
+
+              {/* Modal Body */}
+              {payStatus === 'idle' ? (
+                rechargeType === 'online' ? (
+                  /* ── Online Card Form ── */
+                  <form onSubmit={handleOnlineRechargeSubmit} className="p-5 space-y-5 text-xs font-semibold overflow-y-auto">
+                    {/* Amount */}
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                      <p className="text-[10px] text-white/50 font-bold uppercase mb-2">Payment Amount</p>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 font-bold text-sm">₹</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={rechargeAmount || ''}
+                          onChange={(e) => setRechargeAmount(Number(e.target.value))}
+                          placeholder="Enter amount"
+                          className="w-full bg-black/20 border border-white/10 rounded-xl py-2.5 pl-8 pr-4 text-lg font-black text-white focus:outline-none focus:border-orange-500"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Card selector */}
+                    <div>
+                      <label className="block text-[9px] text-white/40 font-bold uppercase mb-2">Select Linked Card</label>
+                      <select
+                        value={selectedCard}
+                        onChange={(e) => setSelectedCard(e.target.value)}
+                        className="w-full bg-black/25 border border-white/10 rounded-xl py-2.5 px-3 text-xs font-bold text-white focus:outline-none focus:border-orange-500 cursor-pointer"
+                      >
+                        <option value="Visa ending in 4242">Visa ending in 4242 (Corporate Visa)</option>
+                        <option value="Mastercard ending in 9901">Mastercard ending in 9901 (Backup Card)</option>
+                      </select>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                      <div className="flex justify-between text-white/60">
+                        <span>Transaction Fee</span>
+                        <span>₹0.00</span>
+                      </div>
+                      <div className="flex justify-between text-white/95 font-bold border-t border-white/10 pt-2 text-sm">
+                        <span>Total Charge</span>
+                        <span>₹{rechargeAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-3.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-black rounded-xl transition-colors shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      Pay Instantly via Stripe
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </form>
+                ) : (
+                  /* ── Manual Bank Transfer Form ── */
+                  <form onSubmit={handlePaymentProof} className="p-5 space-y-5 text-xs font-semibold overflow-y-auto">
+                    {/* Amount */}
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                      <p className="text-[10px] text-white/50 font-bold uppercase mb-2">Payment Amount</p>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 font-bold text-sm">₹</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={rechargeAmount || ''}
+                          onChange={(e) => setRechargeAmount(Number(e.target.value))}
+                          placeholder="Enter amount"
+                          className="w-full bg-black/20 border border-white/10 rounded-xl py-2.5 pl-8 pr-4 text-lg font-black text-white focus:outline-none focus:border-orange-500"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Step 1: Pump Selector */}
+                    <div>
+                      <p className="text-[10px] text-white/50 font-bold uppercase mb-2 flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-white text-[9px] font-black">1</span>
+                        Select Pump Station
+                      </p>
+
+                      {selectedPump ? (
+                        /* Selected pump pill */
+                        <div className="flex items-center gap-3 bg-orange-500/20 border border-orange-500/30 rounded-xl px-4 py-3">
+                          <Building2 className="h-4 w-4 text-orange-400 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-orange-200 truncate">{selectedPump.name}</p>
+                            <p className="text-[10px] text-orange-400 truncate">
+                              {selectedPump.address}{selectedPump.city ? `, ${selectedPump.city}` : ''}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPump(null)}
+                            className="text-orange-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        /* Pump search list */
+                        <div className="border border-white/10 rounded-xl overflow-hidden max-h-36 overflow-y-auto divide-y divide-white/5">
+                          {loadingPumps ? (
+                            <div className="flex items-center justify-center py-4 gap-2 text-white/40 text-xs">
+                              <Loader2 className="h-4 w-4 animate-spin" /> Loading stations...
+                            </div>
+                          ) : pumps.length === 0 ? (
+                            <div className="py-4 text-center text-white/30 text-xs">No pump stations found</div>
+                          ) : (
+                            pumps.map((pump) => (
+                              <button
+                                key={pump.id}
+                                type="button"
+                                onClick={() => setSelectedPump(pump)}
+                                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/5 text-left transition-colors cursor-pointer"
+                              >
+                                <MapPin className="h-4 w-4 text-white/30 mt-0.5 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-sm font-bold text-white truncate">{pump.name}</p>
+                                  <p className="text-[10px] text-white/40 truncate">
+                                    {pump.address}{pump.city ? `, ${pump.city}` : ''}
+                                  </p>
+                                  {pump.fuel_types?.length > 0 && (
+                                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                                      {pump.fuel_types.map((ft) => (
+                                        <span key={ft} className="text-[9px] font-bold bg-white/10 text-white/60 px-1.5 py-0.5 rounded">
+                                          {ft.trim()}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Step 2: Logistic Info */}
+                    <div className="space-y-3">
+                      <p className="text-[10px] text-white/50 font-bold uppercase mb-2 flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-white text-[9px] font-black">2</span>
+                        Logistic Details <span className="text-white/30">(for contract)</span>
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[9px] text-white/40 font-bold uppercase mb-1">Vehicle Plate</label>
+                          <input
+                            type="text"
+                            value={vehiclePlate}
+                            onChange={(e) => setVehiclePlate(e.target.value)}
+                            placeholder="e.g. MH12AB1234"
+                            className="w-full bg-black/25 border border-white/10 rounded-xl py-2 px-3 text-xs font-bold text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500 uppercase"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] text-white/40 font-bold uppercase mb-1">Vehicle Type</label>
+                          <select
+                            value={vehicleType}
+                            onChange={(e) => setVehicleType(e.target.value)}
+                            className="w-full bg-black/25 border border-white/10 rounded-xl py-2 px-3 text-xs font-bold text-white focus:outline-none focus:border-orange-500"
+                          >
+                            <option value="truck">Truck</option>
+                            <option value="car">Car</option>
+                            <option value="bus">Bus</option>
+                            <option value="tanker">Tanker</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] text-white/40 font-bold uppercase mb-1">Driver Name</label>
+                        <input
+                          type="text"
+                          value={driverName}
+                          onChange={(e) => setDriverName(e.target.value)}
+                          placeholder="Driver's full name (optional)"
+                          className="w-full bg-black/25 border border-white/10 rounded-xl py-2 px-3 text-xs font-bold text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] text-white/40 font-bold uppercase mb-1">Purpose / Remarks</label>
+                        <input
+                          type="text"
+                          value={purpose}
+                          onChange={(e) => setPurpose(e.target.value)}
+                          placeholder="e.g. Monthly fuel advance for fleet"
+                          className="w-full bg-black/25 border border-white/10 rounded-xl py-2 px-3 text-xs font-bold text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Step 3: UTR Reference */}
+                    <div>
+                      <p className="text-[10px] text-white/50 font-bold uppercase mb-2 flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-white text-[9px] font-black">3</span>
+                        UTR / Transaction Reference
+                      </p>
+                      <input
+                        type="text"
+                        value={transactionRef}
+                        onChange={(e) => setTransactionRef(e.target.value)}
+                        placeholder="e.g. UTR123456789012"
+                        className="w-full bg-black/25 border border-white/10 rounded-xl py-2.5 px-4 text-xs font-bold tracking-widest text-white placeholder:text-white/30 focus:outline-none focus:border-orange-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Step 4: Upload Payment Receipt (Real Upload) */}
+                    <div>
+                      <p className="text-[10px] text-white/50 font-bold uppercase mb-2 flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-white text-[9px] font-black">4</span>
+                        Upload Payment Receipt <span className="text-white/30">(optional)</span>
+                      </p>
+                      <div className="text-slate-900">
+                        <FileUpload
+                          accept=".pdf,.jpg,.jpeg,.png,.webp"
+                          onUpload={handleScreenshotUpload}
+                          onRemove={handleScreenshotRemove}
+                          currentFile={screenshotFile}
+                          label="Upload Receipt"
+                          compact
+                        />
+                      </div>
+                    </div>
+
+
+                    <button
+                      type="submit"
+                      className="w-full py-3.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-black rounded-xl transition-colors shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      Submit Payment Proof
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </form>
+                )
+              ) : (
+                /* Processing / Success state */
+                <div className="p-10 text-center flex flex-col items-center justify-center space-y-4">
+                  {payStatus === 'success' ? (
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20"
+                    >
+                      <CheckCircle2 className="h-7 w-7 text-white" />
+                    </motion.div>
+                  ) : (
+                    <Loader2 className="h-10 w-10 text-orange-500 animate-spin" />
+                  )}
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-white">
+                      {payStatus === 'success' ? 'Submitted!' : 'Submitting...'}
+                    </p>
+                    <p className="text-[10px] text-white/50 font-semibold">{progressMsg}</p>
+                  </div>
+                  <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden max-w-[220px]">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: payStatus === 'success' ? '100%' : '70%' }}
+                      transition={{ duration: 1.2 }}
+                      className="bg-orange-500 h-full rounded-full"
+                    />
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── LINK BANK ACCOUNT MODAL ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {isBankModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => { if (!savingBank) setIsBankModalOpen(false); }}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden z-10 max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200"
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <Building2 className="h-5 w-5 text-orange-500 font-bold" />
+                  <div>
+                    <h3 className="text-sm font-extrabold tracking-tight text-slate-900">
+                      {bankAccount?.account_number ? 'Edit Linked Bank Account' : 'Link Settlement Bank Account'}
+                    </h3>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                      Provide corporate bank details
+                    </p>
+                  </div>
+                </div>
+                {!savingBank && (
+                  <button
+                    onClick={() => setIsBankModalOpen(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Modal Body / Form */}
+              <form onSubmit={handleSaveBankAccount} className="p-5 space-y-4 overflow-y-auto text-xs text-slate-700">
+                {/* Account Holder Name */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Account Holder Name *</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={bankHolder}
+                      onChange={(e) => setBankHolder(e.target.value)}
+                      placeholder="e.g. APEX LOGISTICS PVT LTD"
+                      className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Account Number */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Bank Account Number *</label>
+                  <div className="relative">
+                    <Building className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={bankNumber}
+                      onChange={(e) => setBankNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Enter account number"
+                      className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500 font-mono"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* IFSC Code */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">IFSC Code *</label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={bankIfsc}
+                      onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
+                      placeholder="e.g. HDFC0000104"
+                      maxLength={11}
+                      className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500 font-mono uppercase"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Bank Name */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Bank Name *</label>
+                  <input
+                    type="text"
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                    placeholder="e.g. HDFC Bank"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500"
+                    required
+                  />
+                </div>
+
+                {/* UPI ID */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">UPI ID (Optional)</label>
+                  <input
+                    type="text"
+                    value={bankUpi}
+                    onChange={(e) => setBankUpi(e.target.value.toLowerCase())}
+                    placeholder="e.g. apexlogistics@okhdfcbank"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500 font-mono"
+                  />
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="flex gap-3 border-t border-slate-100 pt-4 mt-2">
+                  <button
+                    type="button"
+                    disabled={savingBank}
+                    onClick={() => setIsBankModalOpen(false)}
+                    className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingBank}
+                    className="flex-1 py-2.5 bg-orange-50 hover:bg-orange-600 disabled:bg-slate-200 text-orange-600 font-bold text-xs rounded-xl shadow-md border border-orange-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {savingBank ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-3.5 w-3.5" /> Save Details
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
