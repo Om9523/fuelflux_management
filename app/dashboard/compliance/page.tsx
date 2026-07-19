@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText, ShieldCheck, AlertTriangle, Plus, RefreshCw,
-  Search, Eye, Trash2, Calendar, FileDown, Settings, AlertOctagon, HelpCircle
+  Search, Eye, Trash2, Calendar, FileDown, Settings, AlertOctagon, HelpCircle,
+  CheckCircle, XCircle
 } from 'lucide-react';
 import { usePumpStore } from '@/stores/pumps.store';
 import { complianceService } from '@/services/complianceService';
@@ -67,6 +68,29 @@ export default function ComplianceDashboardPage() {
     setDocumentToRenew(doc);
   };
 
+  const handleVerify = async (docId: string, status: 'verified' | 'rejected') => {
+    if (!pumpId) return;
+    let reason = '';
+    if (status === 'rejected') {
+      const input = prompt('Please enter a rejection reason (optional):');
+      if (input === null) return; // cancelled
+      reason = input;
+    } else {
+      if (!confirm('Are you sure you want to approve and verify this document?')) return;
+    }
+
+    try {
+      await complianceService.verifyDocument(pumpId, docId, status, reason);
+      toast.success(
+        status === 'verified' ? 'Document Approved' : 'Document Rejected',
+        `Verification status updated successfully.`
+      );
+      loadData();
+    } catch (e: any) {
+      toast.error('Verification failed', e.message);
+    }
+  };
+
   const getStatusBadge = (status: ComplianceDocument['status']) => {
     const badges = {
       active: (
@@ -93,8 +117,20 @@ export default function ComplianceDashboardPage() {
           Pending File
         </span>
       ),
+      pending_verification: (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 text-[10px] font-bold">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+          Pending Verification
+        </span>
+      ),
+      rejected: (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold">
+          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+          Rejected
+        </span>
+      ),
     };
-    return badges[status];
+    return badges[status] || null;
   };
 
   // Filter documents expiring in less than 30 days
@@ -298,6 +334,24 @@ export default function ComplianceDashboardPage() {
                     <td className="p-4">{getStatusBadge(doc.status)}</td>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
+                        {doc.status === 'pending_verification' && (
+                          <>
+                            <button
+                              onClick={() => handleVerify(doc.id, 'verified')}
+                              className="p-1.5 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors cursor-pointer"
+                              title="Approve & Verify"
+                            >
+                              <CheckCircle className="h-4 w-4 text-emerald-500" />
+                            </button>
+                            <button
+                              onClick={() => handleVerify(doc.id, 'rejected')}
+                              className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                              title="Reject Document"
+                            >
+                              <XCircle className="h-4 w-4 text-rose-500" />
+                            </button>
+                          </>
+                        )}
                         {doc.fileUrl ? (
                           <a
                             href={doc.fileUrl}

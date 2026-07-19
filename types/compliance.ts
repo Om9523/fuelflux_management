@@ -7,7 +7,7 @@ export interface ComplianceContact {
   notifyEmail: boolean;
 }
 
-export type DocumentStatus = 'active' | 'expiring_soon' | 'expired' | 'pending_upload';
+export type DocumentStatus = 'active' | 'expiring_soon' | 'expired' | 'pending_upload' | 'pending_verification' | 'rejected';
 
 export interface ComplianceDocument {
   id: string;
@@ -22,6 +22,8 @@ export interface ComplianceDocument {
   fileName: string | null;
   uploadedAt: string | null;
   notifyContacts: ComplianceContact[];
+  isVerified?: boolean;
+  rejectionReason?: string | null;
 }
 
 export interface DocumentTypeConfig {

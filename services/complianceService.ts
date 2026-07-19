@@ -21,6 +21,8 @@ const mapDocument = (doc: any): ComplianceDocument => ({
   fileUrl: doc.file_url ? `${getStaticUrl()}${doc.file_url}` : null,
   fileName: doc.file_name || null,
   uploadedAt: doc.created_at || null,
+  isVerified: doc.is_verified || false,
+  rejectionReason: doc.rejection_reason || null,
   notifyContacts: (doc.notify_contacts || []).map((nc: any, idx: number) => ({
     id: `nc_${idx}`,
     name: nc.name,
@@ -195,5 +197,18 @@ export const complianceService = {
     }
 
     return configs;
+  },
+
+  verifyDocument: async (
+    pumpId: string,
+    documentId: string,
+    status: 'verified' | 'rejected',
+    rejectionReason?: string
+  ): Promise<any> => {
+    const r = await getApi().patch(`/compliance/documents/${documentId}/verify`, {
+      status,
+      rejection_reason: rejectionReason,
+    });
+    return r.data;
   },
 };
