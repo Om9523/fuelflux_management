@@ -3,114 +3,58 @@ import {
   CorporateCustomer,
   BillingConfig,
   PaymentRecord,
-  EmailHistoryRecord,
   CorporateBillingStats
 } from '../types/corporateBilling';
-import {
-  mockInvoices,
-  mockCorporateCustomers,
-  mockDefaultBillingConfig
-} from '../mock/corporateBilling';
+import { authService } from '@/services/auth.service';
 
-const INVOICES_KEY = 'fuelflux_billing_invoices';
-const CUSTOMERS_KEY = 'fuelflux_billing_customers';
-const CONFIG_KEY = 'fuelflux_billing_config';
+const getApi = () => authService.getApi();
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-const getStoredInvoices = (): Invoice[] => {
-  if (typeof window === 'undefined') return mockInvoices;
-  const stored = localStorage.getItem(INVOICES_KEY);
-  if (!stored) {
-    localStorage.setItem(INVOICES_KEY, JSON.stringify(mockInvoices));
-    return mockInvoices;
-  }
-  return JSON.parse(stored);
-};
-
-const setStoredInvoices = (invoices: Invoice[]) => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices));
-  }
-};
-
-const getStoredCustomers = (): CorporateCustomer[] => {
-  if (typeof window === 'undefined') return mockCorporateCustomers;
-  const stored = localStorage.getItem(CUSTOMERS_KEY);
-  if (!stored) {
-    localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(mockCorporateCustomers));
-    return mockCorporateCustomers;
-  }
-  return JSON.parse(stored);
-};
-
-const getStoredConfig = (): BillingConfig => {
-  if (typeof window === 'undefined') return mockDefaultBillingConfig;
-  const stored = localStorage.getItem(CONFIG_KEY);
-  if (!stored) {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(mockDefaultBillingConfig));
-    return mockDefaultBillingConfig;
-  }
-  return JSON.parse(stored);
-};
-
-const setStoredConfig = (config: BillingConfig) => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-  }
-};
-
-// Sync invoice statuses based on due dates and payments
-const syncInvoiceStatuses = (invoices: Invoice[]): Invoice[] => {
-  const now = new Date();
-  return invoices.map(inv => {
-    // If total paid equals or exceeds totalAmount, status is 'paid'
-    const totalPaid = inv.payments.reduce((acc, p) => acc + p.amount, 0);
-    if (totalPaid >= inv.totalAmount) {
-      return { ...inv, status: 'paid' };
-    }
-    
-    // Otherwise, check if overdue
-    const dueDate = new Date(inv.dueDate);
-    if (dueDate < now) {
-      return { ...inv, status: 'overdue' };
-    }
-    
-    return { ...inv, status: 'pending' };
-  });
-};
+const mapInvoice = (inv: any): Invoice => ({
+  id: inv.id,
+  invoiceNumber: inv.invoice_number,
+  customerId: inv.customer_id,
+  customerName: inv.customer_name || 'Unknown Customer',
+  billingPeriodStart: inv.cycle_start,
+  billingPeriodEnd: inv.cycle_end,
+  dueDate: inv.due_date || inv.cycle_end,
+  createdAt: inv.generated_at || inv.created_at,
+  amount: inv.taxable_amount || inv.total_amount, // Subtotal
+  gstAmount: inv.total_tax || (inv.cgst_amount + inv.sgst_amount + inv.igst_amount) || 0,
+  totalAmount: inv.rounded_amount || inv.total_amount,
+  status: inv.status as any, // 'paid' | 'pending' | 'overdue' | 'disputed'
+  transactions: (inv.transactions || []).map((t: any) => ({
+    id: t.id,
+    date: t.created_at,
+    vehiclePlate: t.vehicle_plate || '—',
+    fuelType: t.fuel_type || 'diesel',
+    liters: t.liters || 0,
+    rate: t.rate || 0,
+    amount: t.amount || 0,
+  })),
+  payments: inv.paid_at ? [{
+    id: 'p_1',
+    date: inv.paid_at,
+    amount: inv.rounded_amount || inv.total_amount,
+    paymentMode: (inv.payment_method || 'bank_transfer').toLowerCase() as any,
+    referenceNumber: inv.payment_reference || '—',
+  }] : [],
+  emailHistory: inv.email_sent_at ? [{
+    id: 'e_1',
+    sentAt: inv.email_sent_at,
+    recipient: inv.email_sent_to || '—',
+    status: 'delivered',
+  }] : [],
+});
 
 export const corporateBillingService = {
   fetchBillingStats: async (pumpId: string): Promise<CorporateBillingStats> => {
-    await sleep(400);
-    const invoices = syncInvoiceStatuses(getStoredInvoices());
-    
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const pendingAmount = invoices
-      .filter(i => i.status !== 'paid')
-      .reduce((acc, i) => acc + (i.totalAmount - i.payments.reduce((sum, p) => sum + p.amount, 0)), 0);
-
-    const paidThisMonth = invoices
-      .filter(i => i.status === 'paid')
-      .flatMap(i => i.payments)
-      .filter(p => {
-        const pDate = new Date(p.date);
-        return pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear;
-      })
-      .reduce((acc, p) => acc + p.amount, 0);
-
-    const overdueAmount = invoices
-      .filter(i => i.status === 'overdue')
-      .reduce((acc, i) => acc + (i.totalAmount - i.payments.reduce((sum, p) => sum + p.amount, 0)), 0);
-
+    const r = await getApi().get(`/corporate-billing/stats?pump_id=${pumpId}`);
+    const data = r.data;
     return {
-      totalInvoices: invoices.length,
-      pendingAmount,
-      paidThisMonth,
-      overdueAmount,
+      totalInvoices: data.total_invoices || 0,
+      pendingAmount: data.pending_amount || 0,
+      paidThisMonth: data.paid_this_month || 0,
+      overdueAmount: data.overdue_amount || 0,
     };
   },
 
@@ -118,18 +62,20 @@ export const corporateBillingService = {
     pumpId: string,
     filters?: { customerId?: string; status?: string; month?: string; search?: string }
   ): Promise<Invoice[]> => {
-    await sleep(500);
-    let invoices = syncInvoiceStatuses(getStoredInvoices());
+    let url = `/corporate-billing/invoices?pump_id=${pumpId}`;
+    if (filters?.status && filters.status !== 'all') {
+      url += `&status=${filters.status}`;
+    }
+    if (filters?.customerId && filters.customerId !== 'all') {
+      url += `&customer_id=${filters.customerId}`;
+    }
+
+    const r = await getApi().get(url);
+    let invoices = (r.data || []).map(mapInvoice);
 
     if (filters) {
-      if (filters.customerId && filters.customerId !== 'all') {
-        invoices = invoices.filter(i => i.customerId === filters.customerId);
-      }
-      if (filters.status && filters.status !== 'all') {
-        invoices = invoices.filter(i => i.status === filters.status);
-      }
       if (filters.month && filters.month !== 'all') {
-        invoices = invoices.filter(i => {
+        invoices = invoices.filter((i: Invoice) => {
           const invDate = new Date(i.createdAt);
           const filterYearMonth = filters.month; // e.g. "2026-07"
           const dateString = invDate.toISOString().substring(0, 7); // "YYYY-MM"
@@ -139,7 +85,7 @@ export const corporateBillingService = {
       if (filters.search) {
         const query = filters.search.toLowerCase();
         invoices = invoices.filter(
-          i =>
+          (i: Invoice) =>
             i.invoiceNumber.toLowerCase().includes(query) ||
             i.customerName.toLowerCase().includes(query)
         );
@@ -150,8 +96,7 @@ export const corporateBillingService = {
   },
 
   fetchInvoiceDetail: async (pumpId: string, invoiceId: string): Promise<Invoice | null> => {
-    await sleep(400);
-    const invoices = syncInvoiceStatuses(getStoredInvoices());
+    const invoices = await corporateBillingService.fetchInvoices(pumpId);
     const invoice = invoices.find(i => i.id === invoiceId);
     return invoice || null;
   },
@@ -161,73 +106,88 @@ export const corporateBillingService = {
     invoiceId: string,
     payload: Omit<PaymentRecord, 'id'>
   ): Promise<Invoice> => {
-    await sleep(800);
-    const invoices = getStoredInvoices();
-    const invIdx = invoices.findIndex(i => i.id === invoiceId);
-    if (invIdx === -1) throw new Error('Invoice not found');
-
-    const invoice = invoices[invIdx];
-    const newPayment: PaymentRecord = {
-      ...payload,
-      id: 'pay_' + Math.random().toString(36).substr(2, 9),
-    };
-
-    const updatedInvoice = {
-      ...invoice,
-      payments: [...invoice.payments, newPayment],
-    };
-
-    invoices[invIdx] = updatedInvoice;
-    
-    // Status syncing is automatically handled
-    const synced = syncInvoiceStatuses(invoices);
-    setStoredInvoices(synced);
-
-    return synced.find(i => i.id === invoiceId)!;
+    const r = await getApi().patch(`/corporate-billing/invoices/${invoiceId}/mark-paid`, {
+      payment_method: payload.paymentMode === 'bank_transfer' ? 'Bank Transfer' : payload.paymentMode.toUpperCase(),
+      payment_reference: payload.referenceNumber,
+    });
+    return mapInvoice(r.data);
   },
 
   sendInvoiceEmail: async (pumpId: string, invoiceId: string): Promise<Invoice> => {
-    await sleep(600);
-    const invoices = getStoredInvoices();
-    const invIdx = invoices.findIndex(i => i.id === invoiceId);
-    if (invIdx === -1) throw new Error('Invoice not found');
-
-    const invoice = invoices[invIdx];
-    const customers = getStoredCustomers();
-    const customer = customers.find(c => c.id === invoice.customerId);
-    const emailRecipient = customer ? customer.email : 'customer@billing.com';
-
-    const newEmailLog: EmailHistoryRecord = {
-      id: 'e_' + Math.random().toString(36).substr(2, 9),
-      sentAt: new Date().toISOString(),
-      recipient: emailRecipient,
-      status: 'delivered',
-    };
-
-    const updatedInvoice = {
-      ...invoice,
-      emailHistory: [newEmailLog, ...invoice.emailHistory],
-    };
-
-    invoices[invIdx] = updatedInvoice;
-    setStoredInvoices(invoices);
-
-    return updatedInvoice;
+    const r = await getApi().post(`/corporate-billing/invoices/${invoiceId}/send-email`, {});
+    return mapInvoice(r.data);
   },
 
   fetchBillingConfig: async (pumpId: string): Promise<BillingConfig> => {
-    await sleep(300);
-    return getStoredConfig();
+    const r = await getApi().get(`/corporate-billing/config?pump_id=${pumpId}`);
+    const config = r.data;
+
+    return {
+      pumpGstDetails: {
+        gstin: config.gstin || '',
+        legalName: config.pump_name || '',
+        tradeName: config.pump_name || '',
+        address: config.pump_address || '',
+      },
+      invoiceSettings: {
+        prefix: config.invoice_prefix || 'INV',
+        nextNumber: (config.last_invoice_number || 0) + 1,
+        terms: 'Payment is due within 15 days of invoice date.',
+        logoUrl: null,
+      },
+      billingSchedule: {
+        cycle: 'monthly',
+        dayOfMonth: config.billing_day || 1,
+        dayOfWeek: 1,
+      },
+      emailSettings: {
+        autoSend: !!config.cc_email,
+        ccEmails: config.cc_email ? [config.cc_email] : [],
+        subjectTemplate: config.default_email_subject || 'Invoice for your Udhaar Account',
+        bodyTemplate: 'Please find attached your invoice.',
+      },
+    };
   },
 
   updateBillingConfig: async (pumpId: string, config: BillingConfig): Promise<BillingConfig> => {
-    await sleep(600);
-    setStoredConfig(config);
+    // Check if configuration already exists in the backend
+    const checkRes = await getApi().get(`/corporate-billing/config?pump_id=${pumpId}`);
+    const exists = !!(checkRes.data.id || checkRes.data._id);
+
+    const payload = {
+      pump_id: pumpId,
+      pump_name: config.pumpGstDetails.legalName,
+      pump_address: config.pumpGstDetails.address,
+      gstin: config.pumpGstDetails.gstin,
+      state_code: config.pumpGstDetails.gstin ? config.pumpGstDetails.gstin.substring(0, 2) : '27',
+      default_fuel_gst_rate: 0.18, // default standard tax
+      default_supply_type: 'intrastate',
+      invoice_prefix: config.invoiceSettings.prefix,
+      last_invoice_number: config.invoiceSettings.nextNumber - 1,
+      billing_day: config.billingSchedule.dayOfMonth,
+      default_email_subject: config.emailSettings.subjectTemplate,
+      cc_email: config.emailSettings.ccEmails[0] || null,
+    };
+
+    if (exists) {
+      await getApi().put(`/corporate-billing/config?pump_id=${pumpId}`, payload);
+    } else {
+      await getApi().post('/corporate-billing/config', payload);
+    }
+
     return config;
   },
 
   fetchCorporateCustomers: async (pumpId: string): Promise<CorporateCustomer[]> => {
-    await sleep(300);
-    return getStoredCustomers();
+    const r = await getApi().get(`/udhaar/customers?pump_id=${pumpId}`);
+    return (r.data || []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      gstin: c.gstin || '',
+      email: c.email || '',
+      phone: c.phone || '',
+      address: c.address || '',
+      activeContractsCount: c.is_active ? 1 : 0,
+    }));
   },
 };
