@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Mail, ArrowRight, Building2, Truck, Sliders } from 'lucide-react';
+import Script from 'next/script';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -38,7 +39,56 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading, error } = useAuthStore();
+  const { login, googleLogin, isLoading, error } = useAuthStore();
+
+  const handleGoogleLoginSuccess = async (response: any) => {
+    try {
+      const result = await googleLogin(response.credential);
+      toast.success('Successfully logged in with Google!');
+
+      if (result.rolesCount === 1) {
+        const { activeRole } = useAuthStore.getState();
+        const roleDashboardMap: Record<string, string> = {
+          pump_owner: '/dashboard',
+          logistic:   '/logistic/dashboard',
+          investor:   '/investor',
+          admin:      '/admin',
+          employee:   '/employee',
+        };
+        const destination = roleDashboardMap[activeRole ?? ''] ?? '/dashboard';
+        toast.info(`Welcome! Redirecting to your ${activeRole?.replace('_', ' ')} dashboard…`);
+        router.push(destination);
+      } else {
+        router.push('/select-role');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Google Login failed.');
+    }
+  };
+
+  const handleGoogleScriptReady = () => {
+    if (typeof window !== 'undefined' && (window as any).google) {
+      try {
+        (window as any).google.accounts.id.initialize({
+          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+          callback: handleGoogleLoginSuccess,
+        });
+
+        (window as any).google.accounts.id.renderButton(
+          document.getElementById('google-signin-btn'),
+          { theme: 'outline', size: 'large', width: '100%' }
+        );
+      } catch (err) {
+        console.error('Error rendering Google button', err);
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).google) {
+      handleGoogleScriptReady();
+    }
+  }, []);
 
   const {
     register,
@@ -153,6 +203,25 @@ export default function LoginPage() {
           Sign In to Platform
           <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
         </Button>
+
+        {/* Divider */}
+        <div className="relative flex items-center my-1">
+          <div className="flex-grow border-t border-slate-100"></div>
+          <span className="flex-shrink mx-4 text-[10px] font-bold text-text-secondary tracking-widest uppercase">Or</span>
+          <div className="flex-grow border-t border-slate-100"></div>
+        </div>
+
+        {/* Google Sign In Container */}
+        <div className="w-full flex justify-center">
+          <div id="google-signin-btn" className="w-full"></div>
+        </div>
+
+        {/* Google Script Loader */}
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          onReady={handleGoogleScriptReady}
+          strategy="afterInteractive"
+        />
 
         {/* Signup redirection link */}
         <div className="text-center text-xs font-medium text-text-secondary mt-1">

@@ -1,17 +1,33 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { Megaphone } from 'lucide-react';
 import { AnnouncementCard } from '@/components/employee/AnnouncementCard';
-import { useEmployeeStore } from '@/stores/employee.store';
+import backendApi from '@/lib/backendApi';
 
 export default function AnnouncementsPage() {
-  const { announcements, fetchAnnouncements, isLoadingAnnouncements } = useEmployeeStore();
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(true);
   const [filter, setFilter] = useState<'All' | 'Urgent' | 'Safety' | 'Holiday' | 'General'>('All');
 
   useEffect(() => {
-    fetchAnnouncements();
-  }, [fetchAnnouncements]);
+    backendApi.get('/announcements/employee')
+      .then(res => {
+        const mapped = (res.data ?? []).map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          content: a.content,
+          type: a.announcement_type ?? 'General',
+          date: new Date(a.created_at).toLocaleDateString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric'
+          }),
+          author: 'Pump Management',
+        }));
+        setAnnouncements(mapped);
+      })
+      .catch(() => {}) // silent
+      .finally(() => setIsLoadingAnnouncements(false));
+  }, []);
 
   const filteredAnnouncements = announcements.filter((ann) => {
     if (filter === 'All') return true;

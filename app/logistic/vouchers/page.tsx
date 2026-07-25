@@ -25,6 +25,7 @@ import { logisticService } from '@/services/logistic.service';
 import { vehiclesService } from '@/services/vehicles.service';
 import { toast } from '@/components/feedback/Toast';
 import backendApi from '@/lib/backendApi';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function VouchersPage() {
   const { activeFleetId, vouchers, vehicles } = useFleetStore();
@@ -290,18 +291,14 @@ export default function VouchersPage() {
                   <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-amber-500" />
                     
-                    {/* Simulated visual QR box */}
+                    {/* Actual visual QR box */}
                     <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm relative group">
-                      <div className="w-36 h-36 border-4 border-slate-800 p-1 rounded-lg flex flex-wrap gap-[2px] items-center justify-center bg-slate-900 relative">
-                        {/* Custom Mock QR Matrix structure */}
-                        <div className="absolute inset-2 border-2 border-dashed border-white/20 flex items-center justify-center text-white/50 text-[10px] font-mono leading-none">
-                          FF_QR_{focusedVoucher.id}
-                        </div>
-                        {/* Position finders */}
-                        <div className="absolute top-1 left-1 w-6 h-6 border-2 border-white bg-slate-900" />
-                        <div className="absolute top-1 right-1 w-6 h-6 border-2 border-white bg-slate-900" />
-                        <div className="absolute bottom-1 left-1 w-6 h-6 border-2 border-white bg-slate-900" />
-                      </div>
+                      <QRCodeSVG
+                        value={focusedVoucher.qrCode}
+                        size={144}
+                        level="H"
+                        fgColor="#0f172a"
+                      />
                     </div>
 
                     <p className="text-[10px] font-bold text-slate-400 mt-4 uppercase tracking-wider">SMS Token String</p>

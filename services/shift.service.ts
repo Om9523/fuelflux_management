@@ -1,9 +1,13 @@
-﻿import { api } from '@/lib/api';
-import { ShiftDetails } from '@/lib/mock-db';
+﻿/**
+ * shift.service.ts
+ * Real API — replaces the old mock-based shift service.
+ */
+
+import { employeeService } from '@/services/employee.service';
+import { ShiftDetails } from '@/types/employee';
 
 export const shiftService = {
   async getShiftDetails(): Promise<ShiftDetails> {
-    const res = await api.get('/employee/shifts');
-    return res.data.shift;
+    return employeeService.getShift();
   },
 };

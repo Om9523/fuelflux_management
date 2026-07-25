@@ -110,7 +110,7 @@ export default function LogisticLayout({
     { name: 'Fund Wallet / Payments', href: '/logistic/wallet', icon: Wallet },
     { name: 'Fuel History', href: '/logistic/fuel-history', icon: Activity },
     { name: 'Profile', href: '/logistic/profile', icon: User },
-    { name: 'Credit Usage', href: '/logistic/credit-usage', icon: CreditCard }
+    { name: 'Credit Usage', href: '/logistic/udhaar', icon: CreditCard }
   ];
 
   if (user && (user.verification_status === 'pending' || user.verification_status === 'rejected')) {

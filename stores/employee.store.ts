@@ -1,74 +1,235 @@
-﻿import { create } from 'zustand';
-import { EmployeeProfile, User, Announcement } from '@/lib/mock-db';
+/**
+ * employee.store.ts
+ * Zustand store for employee portal.
+ * No mock-db dependency — all data from real API via employeeService.
+ */
+
+import { create } from 'zustand';
 import { employeeService } from '@/services/employee.service';
+import { getEmployeeUser, TOKEN_KEYS } from '@/lib/backendApi';
+import {
+  EmployeeProfile,
+  EmployeeUser,
+  TodayAttendance,
+  AttendanceRecord,
+  AttendanceSummary,
+  LeaveRecord,
+  SalarySlip,
+  ShiftDetails,
+  EmployeeLoginPayload,
+} from '@/types/employee';
 
 interface EmployeeState {
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  user: EmployeeUser | null;
+  isLoggedIn: boolean;
+
+  // ── Profile ───────────────────────────────────────────────────────────────
   profile: EmployeeProfile | null;
-  user: Omit<User, 'passwordHash'> | null;
-  announcements: Announcement[];
-  isLoading: boolean; // Keep for compatibility if used elsewhere
   isLoadingProfile: boolean;
-  isLoadingAnnouncements: boolean;
+
+
+
+  // ── Attendance ─────────────────────────────────────────────────────────────
+  todayRecord: TodayAttendance | null;
+  records: AttendanceRecord[];
+  attendanceSummary: AttendanceSummary | null;
+  isLoadingAttendance: boolean;
+
+  // ── Leave ──────────────────────────────────────────────────────────────────
+  leaves: LeaveRecord[];
+  isLoadingLeaves: boolean;
+
+  // ── Salary ─────────────────────────────────────────────────────────────────
+  salarySlips: SalarySlip[];
+  isLoadingSalary: boolean;
+
+  // ── Shift ──────────────────────────────────────────────────────────────────
+  shift: ShiftDetails | null;
+  isLoadingShift: boolean;
+
+  // ── Shared ────────────────────────────────────────────────────────────────
+  isLoading: boolean;   // generic (kept for backward compat)
   isLoadingUpdate: boolean;
   error: string | null;
 
+  // ── Actions ───────────────────────────────────────────────────────────────
+  initUser: () => void;
+  login: (payload: EmployeeLoginPayload) => Promise<void>;
+  logout: () => Promise<void>;
+
   fetchProfile: () => Promise<void>;
-  updateProfile: (data: { name?: string; email?: string; phone?: string; photoUrl?: string }) => Promise<void>;
-  fetchAnnouncements: () => Promise<void>;
+
+  fetchAttendance: (month?: number, year?: number) => Promise<void>;
+  fetchTodayAttendance: () => Promise<void>;
+  checkIn: () => Promise<void>;
+  checkOut: () => Promise<void>;
+  fetchLeaves: () => Promise<void>;
+  applyLeave: (payload: { leave_type: string; from_date: string; to_date: string; reason: string }) => Promise<void>;
+  fetchSalary: () => Promise<void>;
+  fetchShift: () => Promise<void>;
   changePassword: (current: string, newPass: string) => Promise<void>;
+
   clearStore: () => void;
 }
 
-export const useEmployeeStore = create<EmployeeState>((set) => ({
-  profile: null,
+export const useEmployeeStore = create<EmployeeState>((set, get) => ({
   user: null,
-  announcements: [],
-  isLoading: false,
+  isLoggedIn: false,
+  profile: null,
   isLoadingProfile: false,
-  isLoadingAnnouncements: false,
+
+  todayRecord: null,
+  records: [],
+  attendanceSummary: null,
+  isLoadingAttendance: false,
+  leaves: [],
+  isLoadingLeaves: false,
+  salarySlips: [],
+  isLoadingSalary: false,
+  shift: null,
+  isLoadingShift: false,
+  isLoading: false,
   isLoadingUpdate: false,
   error: null,
 
-  fetchProfile: async () => {
-    set({ isLoadingProfile: true, error: null });
-    try {
-      const { profile, user } = await employeeService.getProfile();
-      set({ profile, user, isLoadingProfile: false });
-    } catch (err: any) {
-      set({ error: err.message || 'Failed to fetch employee profile', isLoadingProfile: false });
+  // ── Load user from localStorage on app init ─────────────────────────────
+  initUser: () => {
+    const user = getEmployeeUser();
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem(TOKEN_KEYS.EMPLOYEE)
+      : null;
+    // Only restore session if BOTH user object AND token exist
+    if (user && token) {
+      set({ user, isLoggedIn: true });
+    } else {
+      // Stale user object without a token — clear it
+      set({ user: null, isLoggedIn: false });
     }
   },
 
-  updateProfile: async (data) => {
-    set({ isLoadingUpdate: true, error: null });
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  login: async (payload) => {
+    set({ isLoading: true, error: null });
     try {
-      const updatedProfile = await employeeService.updateProfile(data);
-      set((state) => ({
-        profile: updatedProfile,
-        user: state.user ? {
-          ...state.user,
-          name: data.name ?? state.user.name,
-          email: data.email ?? state.user.email,
-          phone: data.phone ?? state.user.phone,
-        } : null,
-        isLoadingUpdate: false,
-      }));
+      const res = await employeeService.login(payload);
+      set({ user: res.user, isLoggedIn: true, isLoading: false });
     } catch (err: any) {
-      set({ error: err.message || 'Failed to update employee profile', isLoadingUpdate: false });
+      set({ error: err.message || 'Login failed', isLoading: false });
       throw err;
     }
   },
 
-  fetchAnnouncements: async () => {
-    set({ isLoadingAnnouncements: true, error: null });
+  logout: async () => {
+    await employeeService.logout();
+    get().clearStore();
+  },
+
+  // ── Profile ───────────────────────────────────────────────────────────────
+  fetchProfile: async () => {
+    set({ isLoadingProfile: true, error: null });
     try {
-      const announcements = await employeeService.getAnnouncements();
-      set({ announcements, isLoadingAnnouncements: false });
+      const profile = await employeeService.getProfile();
+      set({ profile, isLoadingProfile: false });
     } catch (err: any) {
-      set({ error: err.message || 'Failed to fetch announcements', isLoadingAnnouncements: false });
+      set({ error: err.message || 'Failed to fetch profile', isLoadingProfile: false });
     }
   },
 
+
+
+  // ── Attendance ─────────────────────────────────────────────────────────────
+  fetchTodayAttendance: async () => {
+    try {
+      const todayRecord = await employeeService.getTodayAttendance();
+      set({ todayRecord });
+    } catch {
+      // Silent fail — today record just stays null
+    }
+  },
+
+  fetchAttendance: async (month, year) => {
+    set({ isLoadingAttendance: true, error: null });
+    try {
+      const { summary, records } = await employeeService.getAttendance(month, year);
+      set({ attendanceSummary: summary, records, isLoadingAttendance: false });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch attendance', isLoadingAttendance: false });
+    }
+  },
+
+  checkIn: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      await employeeService.checkIn();
+      // Refresh today's record
+      const todayRecord = await employeeService.getTodayAttendance();
+      set({ todayRecord, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message || 'Check-in failed', isLoading: false });
+      throw err;
+    }
+  },
+
+  checkOut: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      await employeeService.checkOut();
+      const todayRecord = await employeeService.getTodayAttendance();
+      set({ todayRecord, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message || 'Check-out failed', isLoading: false });
+      throw err;
+    }
+  },
+
+  // ── Leave ──────────────────────────────────────────────────────────────────
+  fetchLeaves: async () => {
+    set({ isLoadingLeaves: true, error: null });
+    try {
+      const leaves = await employeeService.getLeaves();
+      set({ leaves, isLoadingLeaves: false });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch leaves', isLoadingLeaves: false });
+    }
+  },
+
+  applyLeave: async (payload) => {
+    set({ isLoadingUpdate: true, error: null });
+    try {
+      await employeeService.applyLeave(payload as any);
+      // Refresh leave list
+      const leaves = await employeeService.getLeaves();
+      set({ leaves, isLoadingUpdate: false });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to apply leave', isLoadingUpdate: false });
+      throw err;
+    }
+  },
+
+  // ── Salary ─────────────────────────────────────────────────────────────────
+  fetchSalary: async () => {
+    set({ isLoadingSalary: true, error: null });
+    try {
+      const salarySlips = await employeeService.getSalary();
+      set({ salarySlips, isLoadingSalary: false });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch salary', isLoadingSalary: false });
+    }
+  },
+
+  // ── Shift ──────────────────────────────────────────────────────────────────
+  fetchShift: async () => {
+    set({ isLoadingShift: true, error: null });
+    try {
+      const shift = await employeeService.getShift();
+      set({ shift, isLoadingShift: false });
+    } catch (err: any) {
+      set({ error: err.message || 'Failed to fetch shift', isLoadingShift: false });
+    }
+  },
+
+  // ── Password ───────────────────────────────────────────────────────────────
   changePassword: async (current, newPass) => {
     set({ isLoadingUpdate: true, error: null });
     try {
@@ -80,15 +241,27 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
 
+  // ── Clear ──────────────────────────────────────────────────────────────────
   clearStore: () =>
     set({
-      profile: null,
       user: null,
-      announcements: [],
+      isLoggedIn: false,
+      profile: null,
+
+      todayRecord: null,
+      records: [],
+      attendanceSummary: null,
+      leaves: [],
+      salarySlips: [],
+      shift: null,
       error: null,
       isLoading: false,
       isLoadingProfile: false,
-      isLoadingAnnouncements: false,
+
+      isLoadingAttendance: false,
+      isLoadingLeaves: false,
+      isLoadingSalary: false,
+      isLoadingShift: false,
       isLoadingUpdate: false,
     }),
 }));

@@ -79,7 +79,7 @@ export default function SelectRolePage() {
   };
 
   // Mapped roles in the exact order requested by the user
-  const ROLES_ORDER: Role[] = ['pump_owner', 'admin', 'investor', 'employee', 'logistic'];
+  const ROLES_ORDER: Role[] = ['pump_owner', 'investor', 'logistic'];
 
   const handleRoleSelection = async (role: Role) => {
     try {

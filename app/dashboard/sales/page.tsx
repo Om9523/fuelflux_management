@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   Receipt,
   Search,
@@ -31,6 +32,12 @@ import {
   History,
   Layers,
   Save,
+  Camera,
+  ScanLine,
+  Sparkles,
+  QrCode,
+  Copy,
+  CheckCheck,
 } from 'lucide-react';
 import { toast } from '@/components/feedback/Toast';
 import { usePumpStore } from '@/stores/pumps.store';
@@ -45,9 +52,13 @@ import {
   getSaleLogs,
   getSalesOverview,
   getPumpAttendants,
+  scanReceipt,
+  checkVehiclePaymentInfo,
+  VehiclePaymentCheckResult,
   ShiftSummary,
   SaleLog,
   SaleLogPayload,
+  OcrScanResult,
   OverviewData,
   Attendant,
   ShiftPointIn,
@@ -60,6 +71,8 @@ import {
   setItemRates,
   StockItem,
 } from '@/services/inventory.service';
+import { fetchCustomers } from '@/services/udhaar.service';
+import { ownerWalletService, UpiId } from '@/services/ownerWallet.service';
 
 // ─── Constants ──────────────────────────────────────────────────
 
@@ -113,6 +126,21 @@ function toLocalInputValue(d: Date): string {
 
 function fromLocalInputValue(s: string): string {
   return new Date(s).toISOString();
+}
+
+/** Safely extract a human-readable error message from an Axios error.
+ *  FastAPI can return `detail` as a string, an array of validation
+ *  objects, or a plain object — all of which would render as
+ *  "[object Object]" if interpolated directly. */
+function extractApiError(err: any, fallback: string): string {
+  const detail = err?.response?.data?.detail;
+  if (!detail) return err?.message || fallback;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    // FastAPI 422 validation array: [{ loc, msg, type }]
+    return detail.map((d: any) => d?.msg || JSON.stringify(d)).join('; ');
+  }
+  return JSON.stringify(detail);
 }
 
 // ─── Small UI Pieces ────────────────────────────────────────────
@@ -230,7 +258,7 @@ export default function SalesSectionPage() {
       const data = await fetchStockItems(pumpId);
       setStockItems(data);
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'Failed to load inventory items';
+      const msg = extractApiError(err, 'Failed to load inventory items');
       toast.error('Inventory Error', msg);
     } finally {
       setLoadingItems(false);
@@ -244,7 +272,7 @@ export default function SalesSectionPage() {
       const data = await getSalesOverview(pumpId, overviewDays);
       setOverview(data);
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'Failed to load overview';
+      const msg = extractApiError(err, 'Failed to load overview');
       toast.error('Overview Error', msg);
     } finally {
       setLoadingOverview(false);
@@ -268,7 +296,7 @@ export default function SalesSectionPage() {
       });
       setLogs(data);
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'Failed to load entries';
+      const msg = extractApiError(err, 'Failed to load entries');
       setLogsError(msg);
       toast.error('Entries Error', msg);
     } finally {
@@ -333,6 +361,7 @@ export default function SalesSectionPage() {
   const [nsNozzleId, setNsNozzleId] = useState<string>('');
   const [nsQuantity, setNsQuantity] = useState('');
   const [nsCustomerName, setNsCustomerName] = useState('');
+  const [nsCustomerId, setNsCustomerId] = useState(''); // linked UdhaarCustomer ID
   const [nsVehicleNumber, setNsVehicleNumber] = useState('');
   const [nsVehicleType, setNsVehicleType] = useState('');
   const [nsRegistrationType, setNsRegistrationType] = useState('');
@@ -345,8 +374,97 @@ export default function SalesSectionPage() {
   const [nsStep, setNsStep] = useState(1); // 1: basic, 2: customer, 3: attachments
   const [submittingNewSale, setSubmittingNewSale] = useState(false);
 
+  // ── Udhaar customers list for credit mode ──
+  const [udhaarCustomers, setUdhaarCustomers] = useState<{ id: string; name: string; contact_phone: string | null }[]>([]);
+  const [loadingUdhaarCustomers, setLoadingUdhaarCustomers] = useState(false);
+
   const nsRate = nsItemName ? getRate(nsItemName) : 0;
   const nsAmount = nsQuantity && !isNaN(Number(nsQuantity)) ? Number(nsQuantity) * nsRate : 0;
+
+  // ── OCR Scan state ──
+  const [nsScanLoading, setNsScanLoading] = useState(false);
+  const [nsScanResult, setNsScanResult] = useState<OcrScanResult | null>(null);
+
+  // ── Vehicle payment check state ──
+  const [vehicleCheckResult, setVehicleCheckResult] = useState<VehiclePaymentCheckResult | null>(null);
+  const [checkingVehicle, setCheckingVehicle] = useState(false);
+
+  // ── Pump UPI IDs (for QR code display on UPI payment mode) ──
+  const [pumpUpiIds, setPumpUpiIds] = useState<UpiId[]>([]);
+  const [selectedUpiVpa, setSelectedUpiVpa] = useState<string>('');
+  const [copiedUpiVpa, setCopiedUpiVpa] = useState(false);
+
+  // Load Udhaar customers when credit mode is selected and modal is open
+  useEffect(() => {
+    if (!pumpId || !isNewSaleOpen || nsPaymentMode !== 'credit') return;
+    if (udhaarCustomers.length > 0) return; // already loaded
+    setLoadingUdhaarCustomers(true);
+    fetchCustomers(pumpId)
+      .then((list) => setUdhaarCustomers(list.map((c) => ({ id: c.id, name: c.name, contact_phone: c.contact_phone }))))
+      .catch(() => {/* non-critical */})
+      .finally(() => setLoadingUdhaarCustomers(false));
+  }, [pumpId, isNewSaleOpen, nsPaymentMode, udhaarCustomers.length]);
+
+  // Load pump UPI IDs for QR code whenever pump changes
+  useEffect(() => {
+    if (!pumpId) { setPumpUpiIds([]); setSelectedUpiVpa(''); return; }
+    ownerWalletService.getWalletSummary(pumpId)
+      .then((s) => {
+        const ids = s.upi_ids || [];
+        setPumpUpiIds(ids);
+        const primary = ids.find(u => u.is_primary) || ids[0];
+        if (primary) setSelectedUpiVpa(primary.upi_vpa);
+      })
+      .catch(() => { setPumpUpiIds([]); setSelectedUpiVpa(''); });
+  }, [pumpId]);
+
+  // Trigger check when vehicle number changes or new sale modal is opened
+  useEffect(() => {
+    if (!pumpId || !nsVehicleNumber.trim()) {
+      setVehicleCheckResult(null);
+      return;
+    }
+    const delayDebounce = setTimeout(async () => {
+      setCheckingVehicle(true);
+      try {
+        const res = await checkVehiclePaymentInfo(nsVehicleNumber.trim(), pumpId);
+        setVehicleCheckResult(res);
+        if (res.status === 'credit') {
+          // Logistic partner credit
+          setNsPaymentMode('credit');
+          setNsCustomerName(res.partner_name || '');
+        } else if (res.status === 'voucher') {
+          // Logistic fuel voucher
+          setNsPaymentMode('credit');
+          setNsCustomerName(res.partner_name || '');
+          setNsBillingRef(res.voucher_id || '');
+          if (res.amount && nsRate > 0) {
+            setNsQuantity((res.amount / nsRate).toFixed(2));
+          }
+        } else if (res.status === 'udhaar_credit') {
+          // Direct Udhaar customer (pump owner's registered credit customer)
+          setNsPaymentMode('credit');
+          setNsCustomerName(res.customer_name || '');
+          setNsCustomerId(res.customer_id || '');
+        } else if (res.status === 'udhaar_no_contract') {
+          // Vehicle matched but no active contract
+          setNsCustomerName(res.customer_name || '');
+          setNsCustomerId(res.customer_id || '');
+        }
+      } catch (err) {
+        console.warn('Vehicle check failed:', err);
+      } finally {
+        setCheckingVehicle(false);
+      }
+    }, 600); // 600ms debounce
+
+    return () => clearTimeout(delayDebounce);
+  }, [nsVehicleNumber, pumpId, nsRate]);
+
+  // Backend base URL for building full receipt image links
+  const BACKEND_BASE = process.env.NEXT_PUBLIC_API_URL
+    ? process.env.NEXT_PUBLIC_API_URL.replace('/api/v1', '')
+    : 'http://127.0.0.1:8000';
 
   const resetNewSaleForm = () => {
     setNsTimestamp(toLocalInputValue(new Date()));
@@ -355,6 +473,7 @@ export default function SalesSectionPage() {
     setNsNozzleId('');
     setNsQuantity('');
     setNsCustomerName('');
+    setNsCustomerId('');
     setNsVehicleNumber('');
     setNsVehicleType('');
     setNsRegistrationType('');
@@ -365,6 +484,63 @@ export default function SalesSectionPage() {
     setNsReceiptUrl('');
     setNsAttendantId('');
     setNsStep(1);
+    setNsScanLoading(false);
+    setNsScanResult(null);
+    setVehicleCheckResult(null);
+    setCheckingVehicle(false);
+  };
+
+  /**
+   * Handle camera/file input → send to backend OCR → auto-fill form fields.
+   * All auto-fills are best-effort; user can always override manually.
+   */
+  const handleScanReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset the input so the same file can be re-selected if needed
+    e.target.value = '';
+
+    setNsScanLoading(true);
+    setNsScanResult(null);
+    try {
+      const result = await scanReceipt(file);
+      setNsScanResult(result);
+
+      // ── Auto-fill: Vehicle Number ──────────────────────────
+      if (result.vehicle_no) {
+        setNsVehicleNumber(result.vehicle_no.toUpperCase());
+      }
+
+      // ── Auto-fill: Customer Name ───────────────────────────
+      if (result.customer_name_suggested) {
+        setNsCustomerName(result.customer_name_suggested);
+      }
+
+      // ── Auto-fill: Quantity from Amount / Rate ─────────────
+      if (result.total_amount && nsRate > 0) {
+        const computedQty = (result.total_amount / nsRate).toFixed(2);
+        setNsQuantity(computedQty);
+      }
+
+      // ── Auto-fill: Receipt URL ─────────────────────────────
+      if (result.receipt_url) {
+        setNsReceiptUrl(`${BACKEND_BASE}${result.receipt_url}`);
+      }
+
+      if (result.error && result.error !== 'no_text_detected') {
+        toast.error('OCR Warning', 'Could not fully read the slip. Please verify and fill fields manually.');
+      } else if (!result.total_amount && !result.vehicle_no && !result.customer_name_suggested) {
+        toast.error('No Data Extracted', 'OCR found no recognizable text. Try a clearer photo in good lighting.');
+      } else {
+        toast.success('Slip Scanned!', 'Fields auto-filled from credit slip. Please review and correct if needed.');
+      }
+    } catch (err: any) {
+      const msg = extractApiError(err, 'OCR scan failed. Please try again or fill manually.');
+      toast.error('Scan Failed', msg);
+      setNsScanResult(null);
+    } finally {
+      setNsScanLoading(false);
+    }
   };
 
   const openNewSale = () => {
@@ -435,6 +611,7 @@ export default function SalesSectionPage() {
         pos_machine: nsPosMachine || null,
         billing_ref: nsBillingRef || null,
         customer_name: nsCustomerName || null,
+        customer_id: nsCustomerId || null,
         credit_slip_ref: nsCreditSlipRef || null,
         vehicle_number: nsVehicleNumber || null,
         vehicle_type: nsVehicleType || null,
@@ -452,7 +629,7 @@ export default function SalesSectionPage() {
       if (activeShift) refreshActiveShiftSummary();
       loadOverview();
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'Failed to record sale';
+      const msg = extractApiError(err, 'Failed to record sale');
       toast.error('Submission Failed', msg);
     } finally {
       setSubmittingNewSale(false);
@@ -566,7 +743,7 @@ export default function SalesSectionPage() {
       await checkActiveShift();
       setIsSaleEditorOpen(true);
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'Failed to start shift';
+      const msg = extractApiError(err, 'Failed to start shift');
       toast.error('Shift Start Failed', msg);
     } finally {
       setStartingShift(false);
@@ -582,7 +759,7 @@ export default function SalesSectionPage() {
       setLastClosedShift(summary);
       setIsSummaryOpen(true);
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'No previous shifts found';
+      const msg = extractApiError(err, 'No previous shifts found');
       toast.error('Last Shift', msg);
     } finally {
       setLoadingLastShift(false);
@@ -725,7 +902,7 @@ export default function SalesSectionPage() {
       setPendingLogs([]);
       await refreshActiveShiftSummary();
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'Failed to save sales';
+      const msg = extractApiError(err, 'Failed to save sales');
       toast.error('Save Failed', msg);
     } finally {
       setSavingLog(false);
@@ -798,7 +975,7 @@ export default function SalesSectionPage() {
       loadOverview();
       if (mainTab === 'entries') loadLogs();
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'Failed to close shift';
+      const msg = extractApiError(err, 'Failed to close shift');
       toast.error('End Shift Failed', msg);
     } finally {
       setEndingShift(false);
@@ -840,7 +1017,7 @@ export default function SalesSectionPage() {
       setIsRatesOpen(false);
       await loadStockItems();
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || 'Failed to update rates';
+      const msg = extractApiError(err, 'Failed to update rates');
       toast.error('Rate Update Failed', msg);
     } finally {
       setSavingRates(false);
@@ -1320,7 +1497,8 @@ export default function SalesSectionPage() {
       {/* ═══════════════ NEW SALE MODAL (3-step) ═══════════════ */}
       {isNewSaleOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="relative w-full max-w-md bg-white border border-slate-150 rounded-3xl p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-left">
+          <div className="relative w-full max-w-md bg-white border border-slate-150 rounded-3xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-left max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="overflow-y-auto flex-1 p-6">
             <button
               onClick={() => setIsNewSaleOpen(false)}
               className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
@@ -1348,6 +1526,101 @@ export default function SalesSectionPage() {
             {/* ── STEP 1: Item, Quantity, Payment ── */}
             {nsStep === 1 && (
               <div className="flex flex-col gap-4">
+                {/* ── Scan Credit Slip ─────────────────────────────────── */}
+                <div className="rounded-2xl border border-dashed border-orange-200 bg-orange-50/40 p-3.5">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <ScanLine className="h-3.5 w-3.5 text-orange-500" />
+                      <span className="text-[11px] font-extrabold text-orange-700 uppercase tracking-wider">Scan Credit Slip</span>
+                    </div>
+                    <span className="text-[10px] text-orange-400 font-medium">Auto-fills fields via OCR</span>
+                  </div>
+
+                  {/* Hidden file input — triggers camera on mobile */}
+                  <input
+                    id="ns-slip-scan-input"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleScanReceipt}
+                    disabled={nsScanLoading}
+                  />
+
+                  {/* Scan button */}
+                  <label
+                    htmlFor="ns-slip-scan-input"
+                    className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      nsScanLoading
+                        ? 'bg-orange-100 border-orange-200 text-orange-400 pointer-events-none'
+                        : 'bg-white border-orange-200 text-orange-600 hover:bg-orange-100 hover:border-orange-300 shadow-xs'
+                    }`}
+                  >
+                    {nsScanLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+                        <span>Reading slip...</span>
+                        <span className="text-[10px] font-normal opacity-60">(may take a few seconds)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="h-4 w-4" />
+                        <span>{nsScanResult ? 'Re-scan / Change Photo' : 'Take Photo or Select Image'}</span>
+                      </>
+                    )}
+                  </label>
+
+                  {/* Scan result badge */}
+                  {nsScanResult && !nsScanLoading && (
+                    <div className={`mt-2.5 rounded-xl p-3 text-xs border ${
+                      nsScanResult.error && nsScanResult.error !== 'no_text_detected'
+                        ? 'bg-amber-50 border-amber-100'
+                        : 'bg-emerald-50 border-emerald-100'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Sparkles className={`h-3.5 w-3.5 ${
+                          nsScanResult.error && nsScanResult.error !== 'no_text_detected'
+                            ? 'text-amber-500'
+                            : 'text-emerald-500'
+                        }`} />
+                        <span className={`font-extrabold uppercase tracking-wider text-[10px] ${
+                          nsScanResult.error && nsScanResult.error !== 'no_text_detected'
+                            ? 'text-amber-700'
+                            : 'text-emerald-700'
+                        }`}>
+                          {nsScanResult.error && nsScanResult.error !== 'no_text_detected'
+                            ? 'Partial read — verify below'
+                            : 'Extracted from slip'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-medium">
+                        <span className="text-slate-400">Amount</span>
+                        <span className="font-mono font-bold text-slate-800">
+                          {nsScanResult.total_amount ? `₹${nsScanResult.total_amount.toLocaleString('en-IN')}` : '—'}
+                        </span>
+                        <span className="text-slate-400">Vehicle No</span>
+                        <span className="font-mono font-bold text-slate-800">
+                          {nsScanResult.vehicle_no || '—'}
+                        </span>
+                        <span className="text-slate-400">Customer</span>
+                        <span className="font-bold text-slate-800 truncate">
+                          {nsScanResult.customer_name_suggested || '—'}
+                        </span>
+                      </div>
+                      {nsScanResult.total_amount && nsRate > 0 && (
+                        <p className="mt-2 text-[10px] text-emerald-600 font-medium">
+                          ✓ Quantity auto-set to {(nsScanResult.total_amount / nsRate).toFixed(2)} L (₹{nsScanResult.total_amount} ÷ ₹{nsRate}/L)
+                        </p>
+                      )}
+                      {nsScanResult.total_amount && nsRate <= 0 && (
+                        <p className="mt-2 text-[10px] text-amber-600 font-medium">
+                          ⚠ Select an item in Step 1 to auto-compute quantity from amount.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">Timestamp</label>
                   <input
@@ -1446,6 +1719,100 @@ export default function SalesSectionPage() {
                   <span className="text-xs font-bold text-emerald-700">Amount</span>
                   <span className="text-lg font-extrabold text-emerald-700 font-mono">{formatCurrency(nsAmount)}</span>
                 </div>
+
+                {/* ── UPI QR Code Panel ───────────────────────────── */}
+                {nsPaymentMode === 'upi' && (
+                  <div className="rounded-2xl border border-violet-200 bg-gradient-to-b from-violet-50 to-purple-50/60 p-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <QrCode className="h-4 w-4 text-violet-600" />
+                      <span className="text-[11px] font-extrabold text-violet-800 uppercase tracking-wider">UPI Payment QR</span>
+                      <span className="ml-auto text-[10px] bg-violet-100 text-violet-600 font-bold px-2 py-0.5 rounded-lg">Customer Scan Kare</span>
+                    </div>
+
+                    {pumpUpiIds.length === 0 ? (
+                      <div className="text-center py-6 flex flex-col items-center gap-2">
+                        <div className="h-12 w-12 rounded-full bg-violet-100 flex items-center justify-center">
+                          <QrCode className="h-6 w-6 text-violet-400" />
+                        </div>
+                        <p className="text-xs font-bold text-violet-700">Koi UPI ID configure nahi hai</p>
+                        <p className="text-[10px] text-violet-400">Wallet → UPI Settings mein UPI ID add karein</p>
+                      </div>
+                    ) : (() => {
+                      const activeUpi = pumpUpiIds.find(u => u.upi_vpa === selectedUpiVpa) || pumpUpiIds[0];
+                      const upiUrl = `upi://pay?pa=${encodeURIComponent(activeUpi.upi_vpa)}&pn=${encodeURIComponent(selectedPump?.name || 'Petrol Pump')}&am=${nsAmount > 0 ? nsAmount.toFixed(2) : ''}&cu=INR&tn=${encodeURIComponent('Fuel Sale')}`;
+                      return (
+                        <div className="flex flex-col items-center gap-3">
+                          {/* QR Code box */}
+                          <div className="bg-white rounded-2xl p-3 shadow-sm border border-violet-100 relative">
+                            <QRCodeSVG
+                              value={upiUrl}
+                              size={170}
+                              fgColor="#4c1d95"
+                              bgColor="#ffffff"
+                              level="M"
+                            />
+                            {nsAmount <= 0 && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-2xl">
+                                <p className="text-[10px] font-extrabold text-violet-500 text-center px-3">Quantity enter karne par QR activate ho jayega</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* UPI VPA + amount */}
+                          <div className="text-center w-full">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <p className="text-sm font-extrabold text-violet-900">{activeUpi.upi_vpa}</p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(activeUpi.upi_vpa);
+                                  setCopiedUpiVpa(true);
+                                  setTimeout(() => setCopiedUpiVpa(false), 2000);
+                                }}
+                                className="p-1 rounded-lg hover:bg-violet-100 transition-colors"
+                              >
+                                {copiedUpiVpa
+                                  ? <CheckCheck className="h-3.5 w-3.5 text-emerald-500" />
+                                  : <Copy className="h-3.5 w-3.5 text-violet-400" />}
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-violet-500 mt-0.5">{activeUpi.label} • {selectedPump?.name}</p>
+                            {nsAmount > 0 && (
+                              <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-xl text-xs font-extrabold">
+                                <IndianRupee className="h-3.5 w-3.5" />
+                                {nsAmount.toFixed(2)} QR mein encoded hai
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Switch between UPI IDs if multiple */}
+                          {pumpUpiIds.length > 1 && (
+                            <div className="flex gap-1.5 flex-wrap justify-center">
+                              {pumpUpiIds.map((uid) => (
+                                <button
+                                  key={uid.upi_vpa}
+                                  type="button"
+                                  onClick={() => setSelectedUpiVpa(uid.upi_vpa)}
+                                  className={`text-[10px] px-2.5 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
+                                    selectedUpiVpa === uid.upi_vpa
+                                      ? 'bg-violet-600 text-white border-violet-600'
+                                      : 'bg-white text-violet-600 border-violet-200 hover:border-violet-400'
+                                  }`}
+                                >
+                                  {uid.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          <p className="text-[10px] text-violet-400 text-center">
+                            Customer is QR ko scan karke ₹{nsAmount > 0 ? nsAmount.toFixed(2) : '___'} pay karega
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1455,14 +1822,50 @@ export default function SalesSectionPage() {
                 {nsPaymentMode === 'credit' && (
                   <>
                     <div>
-                      <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">Customer Name <span className="text-red-500">*</span></label>
-                      <input
-                        type="text"
-                        value={nsCustomerName}
-                        onChange={(e) => setNsCustomerName(e.target.value)}
-                        placeholder="e.g. Rajesh Transport Co."
-                        className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors"
-                      />
+                      <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">
+                        Credit Customer <span className="text-red-500">*</span>
+                      </label>
+                      {loadingUdhaarCustomers ? (
+                        <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading credit customers...
+                        </div>
+                      ) : udhaarCustomers.length > 0 ? (
+                        <>
+                          <select
+                            value={nsCustomerId}
+                            onChange={(e) => {
+                              const c = udhaarCustomers.find(x => x.id === e.target.value);
+                              setNsCustomerId(e.target.value);
+                              setNsCustomerName(c?.name || '');
+                            }}
+                            className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 bg-white cursor-pointer transition-colors"
+                          >
+                            <option value="">— Select registered customer —</option>
+                            {udhaarCustomers.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}{c.contact_phone ? ` (${c.contact_phone})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          {!nsCustomerId && (
+                            <input
+                              type="text"
+                              value={nsCustomerName}
+                              onChange={(e) => setNsCustomerName(e.target.value)}
+                              placeholder="Or type customer name manually…"
+                              className="w-full mt-2 px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors"
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <input
+                          type="text"
+                          value={nsCustomerName}
+                          onChange={(e) => setNsCustomerName(e.target.value)}
+                          placeholder="e.g. Rajesh Transport Co."
+                          className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors"
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">Credit Slip Reference (Opt)</label>
@@ -1473,6 +1876,24 @@ export default function SalesSectionPage() {
                         placeholder="Slip #"
                         className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors"
                       />
+                    </div>
+                  </>
+                )}
+
+                {nsPaymentMode === 'upi' && (
+                  <>
+                    <div>
+                      <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">
+                        UPI Transaction Ref / UTR (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={nsBillingRef}
+                        onChange={(e) => setNsBillingRef(e.target.value)}
+                        placeholder="e.g. 42612345678901"
+                        className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors font-mono"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">Customer ka UTR / Transaction ID — reconciliation ke liye helpful hai</p>
                     </div>
                   </>
                 )}
@@ -1527,13 +1948,60 @@ export default function SalesSectionPage() {
 
                 <div>
                   <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">Vehicle Number (Opt)</label>
-                  <input
-                    type="text"
-                    value={nsVehicleNumber}
-                    onChange={(e) => setNsVehicleNumber(e.target.value.toUpperCase())}
-                    placeholder="e.g. DL 3C AY 4567"
-                    className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors uppercase"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={nsVehicleNumber}
+                      onChange={(e) => setNsVehicleNumber(e.target.value.toUpperCase())}
+                      placeholder="e.g. DL 3C AY 4567"
+                      className="flex-1 px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors uppercase font-mono"
+                    />
+                  </div>
+                  {checkingVehicle && (
+                    <span className="flex items-center gap-1 text-[10px] text-slate-400 mt-1">
+                      <Loader2 className="h-3 w-3 animate-spin text-slate-500" />
+                      <span>Verifying billing profile...</span>
+                    </span>
+                  )}
+                  {vehicleCheckResult && vehicleCheckResult.status === 'credit' && (
+                    <div className="mt-1.5 p-2 bg-emerald-50 border border-emerald-100 rounded-xl text-[10px] text-emerald-700 font-bold flex items-center gap-1.5 animate-in fade-in duration-200">
+                      <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Matched credit profile of {vehicleCheckResult.partner_name} (Available Limit: {formatCurrency(vehicleCheckResult.available_credit || 0)})</span>
+                    </div>
+                  )}
+                  {vehicleCheckResult && vehicleCheckResult.status === 'voucher' && (
+                    <div className="mt-1.5 p-2 bg-blue-50 border border-blue-100 rounded-xl text-[10px] text-blue-700 font-bold flex flex-col gap-0.5 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle className="h-3.5 w-3.5 text-blue-600" />
+                        <span>Active fuel voucher found for {vehicleCheckResult.partner_name} (Value: {formatCurrency(vehicleCheckResult.amount || 0)})</span>
+                      </div>
+                      {vehicleCheckResult.notes && (
+                        <span className="text-[9px] text-slate-500 font-normal italic ml-5">Note: "{vehicleCheckResult.notes}"</span>
+                      )}
+                    </div>
+                  )}
+                  {vehicleCheckResult && vehicleCheckResult.status === 'udhaar_credit' && (
+                    <div className="mt-1.5 p-2 bg-orange-50 border border-orange-200 rounded-xl text-[10px] text-orange-700 font-bold flex items-center gap-1.5 animate-in fade-in duration-200">
+                      <CheckCircle className="h-3.5 w-3.5 text-orange-600" />
+                      <span>
+                        Credit customer: <span className="font-extrabold">{vehicleCheckResult.customer_name}</span>
+                        {vehicleCheckResult.contact_phone ? ` · ${vehicleCheckResult.contact_phone}` : ''}
+                        {' · '}Available: {formatCurrency(vehicleCheckResult.available_credit || 0)}
+                      </span>
+                    </div>
+                  )}
+                  {vehicleCheckResult && vehicleCheckResult.status === 'udhaar_no_contract' && (
+                    <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-xl text-[10px] text-amber-700 font-bold flex items-center gap-1.5 animate-in fade-in duration-200">
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                      <span>Vehicle belongs to <span className="font-extrabold">{vehicleCheckResult.customer_name}</span> but they have no active credit contract.</span>
+                    </div>
+                  )}
+                  {vehicleCheckResult && vehicleCheckResult.status === 'none' && nsVehicleNumber.trim().length > 4 && (
+                    <div className="mt-1.5 p-1.5 bg-slate-50 border border-slate-100 rounded-xl text-[10px] text-slate-500 font-semibold flex items-center gap-1.5 animate-in fade-in duration-200">
+                      <AlertCircle className="h-3.5 w-3.5 text-slate-400" />
+                      <span>No credit profile found for this vehicle. Proceed as cash/UPI/POS.</span>
+                    </div>
+                  )}
                 </div>
 
                 {attendants.length > 0 && (
@@ -1568,14 +2036,43 @@ export default function SalesSectionPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">Receipt URL (Opt)</label>
-                  <input
-                    type="text"
-                    value={nsReceiptUrl}
-                    onChange={(e) => setNsReceiptUrl(e.target.value)}
-                    placeholder="https://... or upload link"
-                    className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors"
-                  />
+                  <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Receipt Image
+                    {nsReceiptUrl && <span className="ml-1.5 text-emerald-500 font-bold text-[9px]">● SCANNED</span>}
+                  </label>
+                  {nsReceiptUrl ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                        <span className="text-[10px] text-emerald-700 font-semibold truncate flex-1">{nsReceiptUrl.split('/').pop()}</span>
+                        <button
+                          type="button"
+                          onClick={() => setNsReceiptUrl('')}
+                          className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={nsReceiptUrl}
+                        onChange={(e) => setNsReceiptUrl(e.target.value)}
+                        placeholder="Receipt URL"
+                        className="w-full px-3 py-2 text-[10px] font-mono border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors text-slate-500"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      <input
+                        type="text"
+                        value={nsReceiptUrl}
+                        onChange={(e) => setNsReceiptUrl(e.target.value)}
+                        placeholder="Auto-filled after scanning, or paste URL manually"
+                        className="w-full px-3 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-primary/50 transition-colors"
+                      />
+                      <p className="text-[10px] text-slate-400">Use ↑ Step 2 → Scan Credit Slip to auto-populate this field.</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Summary */}
@@ -1589,8 +2086,9 @@ export default function SalesSectionPage() {
               </div>
             )}
 
-            {/* Navigation buttons */}
-            <div className="mt-5 flex gap-3">
+            {/* Navigation buttons - sticky bottom, always visible */}
+            </div>
+            <div className="px-6 pb-5 pt-3 border-t border-slate-100 flex gap-3 flex-shrink-0 bg-white rounded-b-3xl">
               {nsStep > 1 && (
                 <button
                   onClick={handleNsBack}

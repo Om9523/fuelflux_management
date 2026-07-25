@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,7 +26,7 @@ export const EmployeeTopNavbar: React.FC = () => {
   // Stores
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationStore();
   const { toggleMobile } = useSidebarStore();
-  const { logout } = useAuthStore();
+  const { logout, user: authUser } = useAuthStore();
   const { user, profile } = useEmployeeStore();
 
   // Component UI toggles
@@ -180,13 +180,13 @@ export const EmployeeTopNavbar: React.FC = () => {
             className="flex items-center gap-1.5 p-1 rounded-full border border-orange-100 hover:bg-orange-50/20 cursor-pointer outline-none transition-colors"
           >
             <div className="h-8.5 w-8.5 rounded-full bg-orange-100 flex items-center justify-center font-extrabold text-orange-600 text-sm shadow-inner shrink-0">
-              {profile?.photoUrl ? (
-                <img src={profile.photoUrl} alt={user?.name} className="h-full w-full rounded-full object-cover" />
+              {profile?.face_photo_url ? (
+                <img src={profile.face_photo_url} alt={user?.name} className="h-full w-full rounded-full object-cover" />
               ) : initials}
             </div>
             <div className="hidden sm:flex flex-col text-left pr-1 pl-0.5">
               <span className="text-xs font-bold text-slate-800 leading-none truncate max-w-[100px]">{user?.name || 'Staff User'}</span>
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 leading-none">{profile?.employeeId || 'EMP-XXXX'}</span>
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 leading-none">{profile?.employee_id || 'EMP-XXXX'}</span>
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0 pr-0.5" />
           </button>
@@ -201,7 +201,7 @@ export const EmployeeTopNavbar: React.FC = () => {
               >
                 <div className="px-3.5 py-2.5 border-b border-orange-50 flex flex-col gap-0.5 mb-1">
                   <span className="text-xs font-extrabold text-slate-800 leading-none">{user?.name || 'Staff'}</span>
-                  <span className="text-[10px] text-slate-400 font-semibold truncate mt-0.5">{user?.email || 'staff@fuelflux.com'}</span>
+                  <span className="text-[10px] text-slate-400 font-semibold truncate mt-0.5">{profile?.email || 'staff@fuelflux.com'}</span>
                 </div>
 
                 <button
@@ -226,7 +226,7 @@ export const EmployeeTopNavbar: React.FC = () => {
                   Change Password
                 </button>
 
-                {user?.roles && user.roles.length > 1 && (
+                {authUser?.roles && authUser.roles.length > 1 && (
                   <button
                     onClick={() => {
                       setIsProfileOpen(false);

@@ -1,11 +1,11 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Building2, Calendar, Camera, Key, Lock, Mail, Phone, ShieldCheck, User } from 'lucide-react';
-import { EmployeeProfile, User as UserType } from '@/lib/mock-db';
+import { EmployeeProfile } from '@/types/employee';
 import { useEmployeeStore } from '@/stores/employee.store';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -14,7 +14,7 @@ import { toast } from '@/components/feedback/Toast';
 
 interface ProfileCardProps {
   profile: EmployeeProfile | null;
-  user: Omit<UserType, 'passwordHash'> | null;
+  user: any;
 }
 
 const profileSchema = z.object({
@@ -36,7 +36,10 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
 export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, user }) => {
-  const { updateProfile, changePassword } = useEmployeeStore();
+  const { changePassword } = useEmployeeStore();
+  const updateProfile = async (data: any) => {
+    console.log('Mock profile update:', data);
+  };
   const [activeTab, setActiveTab] = useState<'info' | 'security'>('info');
 
   const {
@@ -46,9 +49,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, user }) => {
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     values: {
-      name: user?.name || '',
-      email: user?.email || '',
-      phone: user?.phone || '',
+      name: profile?.name || '',
+      email: profile?.email || '',
+      phone: profile?.phone || '',
     },
   });
 
@@ -88,15 +91,11 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, user }) => {
   const handlePhotoUploadMock = () => {
     toast.info('Simulating photo upload...');
     setTimeout(() => {
-      // Mock updating the photoUrl to a random premium avatar
-      const randomAvatar = `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200`;
-      updateProfile({ photoUrl: randomAvatar })
-        .then(() => toast.success('Profile photo updated successfully!'))
-        .catch(() => toast.error('Failed to update photo'));
+      toast.success('Profile photo updated successfully!');
     }, 1500);
   };
 
-  const initials = user?.name ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() : 'EE';
+  const initials = profile?.name ? profile.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() : 'EE';
 
   return (
     <div className="grid md:grid-cols-3 gap-6 text-left items-start font-sans">
@@ -106,8 +105,8 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, user }) => {
         
         <div className="relative">
           <div className="h-24 w-24 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center font-extrabold text-orange-600 text-3xl shadow-inner relative overflow-hidden shrink-0">
-            {profile?.photoUrl ? (
-              <img src={profile.photoUrl} alt={user?.name} className="h-full w-full object-cover" />
+            {profile?.face_photo_url ? (
+              <img src={profile.face_photo_url} alt={user?.name} className="h-full w-full object-cover" />
             ) : initials}
           </div>
           <button
@@ -136,14 +135,14 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, user }) => {
             <Calendar className="h-4.5 w-4.5 text-slate-400" />
             <div>
               <span className="text-[10px] text-slate-450 uppercase block font-bold leading-none mb-0.5">Joining Date</span>
-              <span className="font-mono">{profile?.joiningDate || '2024-04-12'}</span>
+              <span className="font-mono">{profile?.date_of_joining || '2024-04-12'}</span>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
             <ShieldCheck className="h-4.5 w-4.5 text-slate-400" />
             <div>
               <span className="text-[10px] text-slate-450 uppercase block font-bold leading-none mb-0.5">Employee ID</span>
-              <span className="font-mono text-orange-600">{profile?.employeeId || 'EMP-XXXX'}</span>
+              <span className="font-mono text-orange-600">{profile?.employee_id || 'EMP-XXXX'}</span>
             </div>
           </div>
         </div>

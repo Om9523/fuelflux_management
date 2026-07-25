@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { useForm } from 'react-hook-form';
@@ -48,7 +48,13 @@ export const LeaveForm: React.FC<LeaveFormProps> = ({ onSuccess }) => {
 
   const onSubmit = async (data: LeaveFormValues) => {
     try {
-      await leaveService.applyForLeave(data);
+      const payload = {
+        leave_type: (data.leaveType === 'Casual Leave' ? 'Casual' : data.leaveType === 'Sick Leave' ? 'Sick' : 'Emergency') as any,
+        from_date: data.startDate,
+        to_date: data.endDate,
+        reason: data.reason,
+      };
+      await leaveService.applyLeave(payload);
       toast.success('Leave application submitted successfully!');
       reset();
       if (onSuccess) onSuccess();

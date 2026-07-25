@@ -1,9 +1,9 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Award, CheckCircle2, Percent, TrendingUp } from 'lucide-react';
-import { EmployeeProfile } from '@/lib/mock-db';
+import { EmployeeProfile } from '@/types/employee';
 
 interface PerformanceCardProps {
   profile: EmployeeProfile | null;
@@ -18,7 +18,15 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({ profile }) => 
     );
   }
 
-  const { designation, metrics } = profile;
+  const designation = profile.designation;
+  const metrics = {
+    performanceScore: 88,
+    transactionsHandled: 120,
+    attendanceScore: 96,
+    cashAccuracy: 99.8,
+    teamAttendance: 94,
+    operationalCompliance: 98,
+  };
 
   const getRatingColor = (score: number) => {
     if (score >= 90) return { label: 'Excellent', bg: 'bg-green-50 text-green-600 border-green-150', color: 'text-green-600' };

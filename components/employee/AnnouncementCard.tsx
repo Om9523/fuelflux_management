@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Bell, Calendar, ShieldCheck, User } from 'lucide-react';
-import { Announcement } from '@/lib/mock-db';
+import { Announcement } from '@/types/employee';
 
 interface AnnouncementCardProps {
   announcement: Announcement;

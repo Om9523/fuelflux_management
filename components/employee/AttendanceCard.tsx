@@ -8,34 +8,44 @@ import { Button } from '@/components/ui/Button';
 import { toast } from '@/components/feedback/Toast';
 
 export const AttendanceCard: React.FC = () => {
-  const { todayRecord, checkIn, checkOut, isLoading } = useAttendanceStore();
+  const { todayRecord, checkIn, checkOut, isChecking, fetchTodayAttendance } = useAttendanceStore();
   const [elapsedTime, setElapsedTime] = useState<string>('00:00:00');
 
+  // Fetch today's record on mount
+  useEffect(() => {
+    fetchTodayAttendance();
+  }, []);
+
+  // Live stopwatch — runs while checked in but not checked out
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
-    if (todayRecord && todayRecord.checkIn && !todayRecord.checkOut) {
-      // Calculate elapsed time from check-in
+    // Backend returns "09:15 AM" format — parse it
+    const checkInStr = todayRecord?.check_in;
+    const checkOutStr = todayRecord?.check_out;
+
+    if (checkInStr && !checkOutStr) {
       const calculateElapsed = () => {
-        const checkInTimeStr = todayRecord.checkIn!;
-        const [inH, inM] = checkInTimeStr.split(':').map(Number);
-        
+        // Parse "09:15 AM" → hours/minutes
+        const [time, meridiem] = checkInStr.split(' ');
+        let [h, m] = time.split(':').map(Number);
+        if (meridiem === 'PM' && h !== 12) h += 12;
+        if (meridiem === 'AM' && h === 12) h = 0;
+
         const now = new Date();
         const checkInDate = new Date();
-        checkInDate.setHours(inH, inM, 0, 0);
+        checkInDate.setHours(h, m, 0, 0);
 
-        // If check-in was yesterday (e.g. night shift)
+        // Night shift — check-in was yesterday
         if (now.getTime() < checkInDate.getTime()) {
           checkInDate.setDate(checkInDate.getDate() - 1);
         }
 
-        const diffMs = now.getTime() - checkInDate.getTime();
-        const diffSecs = Math.floor(diffMs / 1000);
+        const diffSecs = Math.floor((now.getTime() - checkInDate.getTime()) / 1000);
         const hours = Math.floor(diffSecs / 3600);
         const mins = Math.floor((diffSecs % 3600) / 60);
         const secs = diffSecs % 60;
-
-        const pad = (num: number) => String(num).padStart(2, '0');
+        const pad = (n: number) => String(n).padStart(2, '0');
         setElapsedTime(`${pad(hours)}:${pad(mins)}:${pad(secs)}`);
       };
 
@@ -45,9 +55,7 @@ export const AttendanceCard: React.FC = () => {
       setElapsedTime('00:00:00');
     }
 
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+    return () => { if (intervalId) clearInterval(intervalId); };
   }, [todayRecord]);
 
   const handleCheckIn = async () => {
@@ -62,11 +70,16 @@ export const AttendanceCard: React.FC = () => {
   const handleCheckOut = async () => {
     try {
       await checkOut();
-      toast.success('Successfully checked out. Shift completed!');
+      toast.success('Shift completed! Check-out logged.');
     } catch (err: any) {
       toast.error(err.message || 'Check-out failed');
     }
   };
+
+  // Determine current state
+  const notCheckedIn = !todayRecord || todayRecord.today_status === 'Not Checked In';
+  const checkedOut = !!todayRecord?.check_out;
+  const onShift = !notCheckedIn && !checkedOut;
 
   return (
     <motion.div
@@ -74,6 +87,7 @@ export const AttendanceCard: React.FC = () => {
       animate={{ opacity: 1, y: 0 }}
       className="bg-white border border-orange-100 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6 text-left"
     >
+      {/* Left info */}
       <div className="flex items-center gap-4">
         <div className="h-12 w-12 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-orange-500 shrink-0 shadow-inner">
           <Clock className="h-6 w-6" />
@@ -81,18 +95,19 @@ export const AttendanceCard: React.FC = () => {
         <div>
           <h3 className="text-base font-bold text-slate-800">Shift Attendance Console</h3>
           <p className="text-xs text-slate-400 font-semibold mt-0.5">
-            {!todayRecord 
-              ? 'Ready for today\'s shift. Please check in to log timings.'
-              : todayRecord.checkOut 
-                ? 'Thank you! Shift complete. Check-out logged.'
-                : `Checked in today at ${todayRecord.checkIn}. Shift active.`}
+            {notCheckedIn
+              ? "Ready for today's shift. Please check in to log timings."
+              : checkedOut
+                ? `Shift complete. Checked out at ${todayRecord.check_out}.`
+                : `Checked in at ${todayRecord?.check_in}. Shift active.`}
           </p>
         </div>
       </div>
 
-      {/* Stopwatch & Action Panel */}
+      {/* Right — stopwatch + button */}
       <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto shrink-0">
-        {todayRecord && !todayRecord.checkOut && (
+        {/* Live timer — only while on shift */}
+        {onShift && (
           <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 px-4 py-2.5 rounded-xl">
             <Timer className="h-4 w-4 text-orange-500 animate-pulse" />
             <span className="text-sm font-mono font-bold text-orange-600 tracking-wider">
@@ -102,36 +117,37 @@ export const AttendanceCard: React.FC = () => {
         )}
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          {!todayRecord ? (
+          {notCheckedIn ? (
             <Button
               variant="primary"
               size="lg"
               className="w-full sm:w-auto font-bold bg-orange-500 hover:bg-orange-600 text-white"
               onClick={handleCheckIn}
-              isLoading={isLoading}
+              isLoading={isChecking}
             >
               <Play className="h-4 w-4 mr-2" />
               Check In Shift
             </Button>
-          ) : !todayRecord.checkOut ? (
+          ) : checkedOut ? (
+            <div className="w-full sm:w-auto text-center px-6 py-2.5 bg-green-50 border border-green-100 text-green-600 font-bold rounded-xl text-xs sm:text-sm">
+              Today Completed ({todayRecord?.working_hours} hrs)
+            </div>
+          ) : (
             <Button
               variant="danger"
               size="lg"
-              className="w-full sm:w-auto font-bold bg-red-500 hover:bg-red-600 text-white"
+              className="w-full sm:w-auto font-bold"
               onClick={handleCheckOut}
-              isLoading={isLoading}
+              isLoading={isChecking}
             >
               <Square className="h-4 w-4 mr-2" />
               Check Out Shift
             </Button>
-          ) : (
-            <div className="w-full sm:w-auto text-center px-6 py-2.5 bg-green-50 border border-green-100 text-green-600 font-bold rounded-xl text-xs sm:text-sm">
-              Today Completed ({todayRecord.workingHours} hrs)
-            </div>
           )}
         </div>
       </div>
     </motion.div>
   );
 };
+
 export default AttendanceCard;

@@ -1,52 +1,26 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { EmployeeSidebar } from './EmployeeSidebar';
 import { EmployeeTopNavbar } from './EmployeeTopNavbar';
 import { useSidebarStore } from '@/stores/sidebar.store';
-import { useAuthStore } from '@/stores/auth.store';
 import { useEmployeeStore } from '@/stores/employee.store';
 import { useAttendanceStore } from '@/stores/attendance.store';
+import { useNotificationStore } from '@/stores/notification.store';
 
 export const EmployeeLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const router = useRouter();
   const { isCollapsed } = useSidebarStore();
-  const { isAuthenticated, initializeSession, isLoading: authLoading } = useAuthStore();
-  const { profile, fetchProfile, isLoadingProfile } = useEmployeeStore();
+  const { fetchProfile } = useEmployeeStore();
   const { fetchAttendance } = useAttendanceStore();
+  const { fetchAnnouncementsAsNotifications } = useNotificationStore();
 
+  // Fetch employee-specific data on mount
+  // Auth guard is handled by app/employee/layout.tsx — not here
   useEffect(() => {
-    initializeSession();
-  }, [initializeSession]);
-
-  // If authenticated, fetch profile and attendance
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchProfile();
-      fetchAttendance();
-    }
-  }, [isAuthenticated, fetchProfile, fetchAttendance]);
-
-  // Backup client-side redirect if not authenticated
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, authLoading, router]);
-
-  if (authLoading || (isLoadingProfile && !profile) || !isAuthenticated) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 font-sans">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-9 w-9 border-t-2 border-orange-500" />
-          <span className="text-xs font-bold text-slate-400 font-mono tracking-widest uppercase">
-            Securing Staff Session...
-          </span>
-        </div>
-      </div>
-    );
-  }
+    fetchProfile();
+    fetchAttendance();
+    fetchAnnouncementsAsNotifications();
+  }, [fetchProfile, fetchAttendance, fetchAnnouncementsAsNotifications]);
 
   const paddingClass = isCollapsed ? 'lg:pl-20' : 'lg:pl-64';
 

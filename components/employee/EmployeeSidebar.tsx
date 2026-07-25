@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import Link from 'next/link';
@@ -19,15 +19,13 @@ import {
   X,
 } from 'lucide-react';
 import { useSidebarStore } from '@/stores/sidebar.store';
-import { useAuthStore } from '@/stores/auth.store';
 import { useEmployeeStore } from '@/stores/employee.store';
 
 export const EmployeeSidebar: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { isCollapsed, isMobileOpen, toggleSidebar, setMobileOpen } = useSidebarStore();
-  const { logout } = useAuthStore();
-  const { profile, user } = useEmployeeStore();
+  const { logout, profile, user } = useEmployeeStore();
 
   const navItems = [
     { label: 'Dashboard', href: '/employee', icon: <LayoutDashboard className="h-5 w-5 shrink-0" /> },
@@ -44,9 +42,9 @@ export const EmployeeSidebar: React.FC = () => {
 
   const initials = user?.name ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() : 'EE';
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
+  const handleLogout = async () => {
+    await logout();
+    router.push('/employee/login');
   };
 
   const RenderContent = () => (

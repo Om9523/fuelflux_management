@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import backendApi from '@/lib/backendApi';
 
 export interface StationNotification {
   id: string;
@@ -17,34 +18,10 @@ interface NotificationState {
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   clearAll: () => void;
+  fetchAnnouncementsAsNotifications: () => Promise<void>;
 }
 
-const SEED_NOTIFICATIONS: StationNotification[] = [
-  {
-    id: 'n_1',
-    title: 'Low Fuel Stock Alarm',
-    message: 'Diesel Tank 1 capacity has dropped below 15% safety threshold (3,240 L remaining). Auto-replenish order drafted.',
-    type: 'danger',
-    timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 minutes ago
-    read: false,
-  },
-  {
-    id: 'n_2',
-    title: 'Blacklisted Vehicle Attempt',
-    message: 'ANPR camera 3 detected blacklisted fleet truck TS-08-EJ-9921 attempting credit fill. Dispenser locked.',
-    type: 'warning',
-    timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(), // 45 minutes ago
-    read: false,
-  },
-  {
-    id: 'n_3',
-    title: 'Shift Reconciliation Signed',
-    message: 'Shift B sales registry audited and electronically signed by Attendant Vikram Singh.',
-    type: 'success',
-    timestamp: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), // 2 hours ago
-    read: true,
-  },
-];
+const SEED_NOTIFICATIONS: StationNotification[] = [];
 
 export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: SEED_NOTIFICATIONS,
@@ -86,4 +63,28 @@ export const useNotificationStore = create<NotificationState>((set) => ({
     notifications: [],
     unreadCount: 0,
   }),
+
+  fetchAnnouncementsAsNotifications: async () => {
+    try {
+      const res = await backendApi.get('/announcements/employee');
+      const announcements = res.data;
+      const mapped: StationNotification[] = announcements.map((a: any) => ({
+        id: a.id,
+        title: a.title,
+        message: a.content,
+        type: a.announcement_type === 'Urgent' ? 'danger'
+             : a.announcement_type === 'Safety' ? 'warning'
+             : a.announcement_type === 'Holiday' ? 'success'
+             : 'info',
+        timestamp: a.created_at,
+        read: false,
+      }));
+      set({
+        notifications: mapped,
+        unreadCount: mapped.length,
+      });
+    } catch {
+      // silent fail — bell just shows 0
+    }
+  },
 }));

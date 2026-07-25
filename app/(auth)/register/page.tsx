@@ -20,6 +20,7 @@ import {
   CheckCircle,
   MessageSquare,
 } from 'lucide-react';
+import Script from 'next/script';
 import { AuthLayout } from '@/components/layouts/AuthLayout';
 import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -51,7 +52,59 @@ type Step2Values = z.infer<typeof step2Schema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { registerUser, verifyOTP, sendOTP, isLoading } = useAuthStore();
+  const { registerUser, googleRegister, verifyOTP, sendOTP, isLoading } = useAuthStore();
+
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [isGoogleSignup, setIsGoogleSignup] = useState<boolean>(false);
+
+  const handleGoogleSignupSuccess = (response: any) => {
+    try {
+      const idToken = response.credential;
+      const payload = JSON.parse(atob(idToken.split('.')[1]));
+      const email = payload.email;
+      const name = payload.name || `${payload.given_name || ''} ${payload.family_name || ''}`.trim();
+
+      if (!email) {
+        toast.error('Email not provided by Google account');
+        return;
+      }
+
+      setGoogleToken(idToken);
+      setIsGoogleSignup(true);
+
+      step1Form.setValue('name', name, { shouldValidate: true });
+      step1Form.setValue('email', email, { shouldValidate: true });
+
+      toast.success(`Google account linked: ${email}. Please enter your mobile number to continue.`);
+    } catch (err) {
+      console.error('Failed to parse Google credential', err);
+      toast.error('Google registration failed. Please try again.');
+    }
+  };
+
+  const handleGoogleScriptReady = () => {
+    if (typeof window !== 'undefined' && (window as any).google && !isGoogleSignup) {
+      try {
+        (window as any).google.accounts.id.initialize({
+          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+          callback: handleGoogleSignupSuccess,
+        });
+
+        (window as any).google.accounts.id.renderButton(
+          document.getElementById('google-signup-btn'),
+          { theme: 'outline', size: 'large', width: '100%', text: 'signup_with' }
+        );
+      } catch (err) {
+        console.error('Error rendering Google button', err);
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).google && !isGoogleSignup) {
+      handleGoogleScriptReady();
+    }
+  }, [isGoogleSignup]);
 
   // Wizard State management
   const [step, setStep] = useState(1);
@@ -128,7 +181,7 @@ export default function RegisterPage() {
   // STEP NAVIGATION & SUBMIT ACTIONS
   const onStep1Submit = (data: Step1Values) => {
     setFormData((prev: any) => ({ ...prev, ...data }));
-    setStep(2);
+    setStep(isGoogleSignup ? 3 : 2);
   };
 
   const onStep2Submit = (data: Step2Values) => {
@@ -150,16 +203,33 @@ export default function RegisterPage() {
       return;
     }
 
-    const completePayload = {
-      ...formData,
-      roles: selectedRoles,
-    };
-
     try {
-      await registerUser(completePayload);
-      toast.success('Registration initiated successfully! OTP has been sent.');
-      setIsOTPModalOpen(true);
-      setResendTimer(60);
+      if (isGoogleSignup && googleToken) {
+        await googleRegister({
+          id_token: googleToken,
+          phone: formData.phone,
+          roles: selectedRoles,
+        });
+        toast.success('Registered successfully with Google!');
+      } else {
+        const completePayload = {
+          ...formData,
+          roles: selectedRoles,
+        };
+        await registerUser(completePayload);
+        toast.success('Registered successfully!');
+      }
+
+      const { activeRole } = useAuthStore.getState();
+      const roleDashboardMap: Record<string, string> = {
+        pump_owner: '/dashboard',
+        logistic:   '/logistic/dashboard',
+        investor:   '/investor',
+        admin:      '/admin',
+        employee:   '/employee',
+      };
+      const destination = roleDashboardMap[activeRole ?? ''] ?? '/dashboard';
+      router.push(destination);
     } catch (err: any) {
       toast.error(err.message || 'Registration failed');
     }
@@ -238,6 +308,7 @@ export default function RegisterPage() {
               leftIcon={<UserIcon className="h-4 w-4" />}
               placeholder="e.g. Rajesh Kumar"
               error={step1Form.formState.errors.name?.message}
+              disabled={isGoogleSignup}
             />
 
             <Input
@@ -247,6 +318,7 @@ export default function RegisterPage() {
               leftIcon={<Mail className="h-4 w-4" />}
               placeholder="you@fuelflux.com"
               error={step1Form.formState.errors.email?.message}
+              disabled={isGoogleSignup}
             />
 
             <Input
@@ -259,9 +331,48 @@ export default function RegisterPage() {
             />
 
             <Button type="submit" variant="primary" size="lg" className="w-full mt-2 font-bold group">
-              Continue to Security
+              {isGoogleSignup ? 'Continue to Roles' : 'Continue to Security'}
               <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
+
+            {isGoogleSignup && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGoogleSignup(false);
+                  setGoogleToken(null);
+                  step1Form.setValue('name', '');
+                  step1Form.setValue('email', '');
+                  toast.info('Google account unlinked.');
+                }}
+                className="text-xs font-bold text-red-500 hover:text-red-600 self-center underline cursor-pointer mt-1"
+              >
+                Unlink Google Account
+              </button>
+            )}
+
+            {!isGoogleSignup && (
+              <>
+                {/* Divider */}
+                <div className="relative flex items-center my-1">
+                  <div className="flex-grow border-t border-slate-100"></div>
+                  <span className="flex-shrink mx-4 text-[10px] font-bold text-text-secondary tracking-widest uppercase">Or</span>
+                  <div className="flex-grow border-t border-slate-100"></div>
+                </div>
+
+                {/* Google Sign Up Container */}
+                <div className="w-full flex justify-center">
+                  <div id="google-signup-btn" className="w-full"></div>
+                </div>
+
+                {/* Google Script Loader */}
+                <Script
+                  src="https://accounts.google.com/gsi/client"
+                  onReady={handleGoogleScriptReady}
+                  strategy="afterInteractive"
+                />
+              </>
+            )}
           </motion.form>
         )}
 
@@ -444,7 +555,7 @@ export default function RegisterPage() {
                 type="button"
                 variant="outline"
                 size="lg"
-                onClick={() => setStep(2)}
+                onClick={() => setStep(isGoogleSignup ? 1 : 2)}
                 className="flex-1 font-bold"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />

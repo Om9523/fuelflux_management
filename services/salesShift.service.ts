@@ -244,3 +244,64 @@ export async function getPumpAttendants(pumpId: string): Promise<Attendant[]> {
   const res = await authService.getApi().get('/sales/attendants', { params: { pump_id: pumpId } });
   return res.data;
 }
+
+// ─── OCR Receipt Scanner ─────────────────────────────────────────
+
+export interface OcrScanResult {
+  /** Extracted rupee amount from the slip (null if not detected) */
+  total_amount: number | null;
+  /** Indian vehicle plate number in normalized format e.g. "MH12AB1234" */
+  vehicle_no: string | null;
+  /** Heuristic customer/party name extracted from slip (null if not detected) */
+  customer_name_suggested: string | null;
+  /** Server-relative URL to the saved receipt image e.g. "/uploads/receipts/abc.jpg" */
+  receipt_url: string | null;
+  /** All raw text lines extracted by OCR (useful for debugging) */
+  raw_text_lines: string[];
+  /** Error code if OCR failed: "ocr_failed" | "no_text_detected" | "ocr_not_installed" | null */
+  error?: string | null;
+}
+
+/**
+ * Upload a credit slip image to the backend for OCR processing.
+ * Uses EasyOCR (free, runs on server). Returns extracted fields.
+ * Timeout is 30s to handle OCR cold-start on first request.
+ */
+export async function scanReceipt(file: File): Promise<OcrScanResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await authService.getApi().post<OcrScanResult>(
+    '/sales/scan-receipt',
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    }
+  );
+  return res.data;
+}
+
+export interface VehiclePaymentCheckResult {
+  status: 'none' | 'credit' | 'voucher' | 'udhaar_credit' | 'udhaar_no_contract';
+  // Logistic fields
+  voucher_id?: string;
+  amount?: number;
+  notes?: string;
+  vehicle_id?: string;
+  partner_name?: string;
+  available_credit?: number;
+  vehicle_plate_normalized?: string;
+  // Udhaar customer fields
+  customer_id?: string;
+  customer_name?: string;
+  credit_limit?: number;
+  current_spend?: number;
+  contact_phone?: string;
+}
+
+export async function checkVehiclePaymentInfo(vehiclePlate: string, pumpId: string): Promise<VehiclePaymentCheckResult> {
+  const res = await authService.getApi().get('/sales/check-vehicle', {
+    params: { vehicle_plate: vehiclePlate, pump_id: pumpId },
+  });
+  return res.data;
+}

@@ -13,6 +13,15 @@ interface AuthState {
 
   login: (emailOrPhone: string, password: string, rememberMe: boolean) => Promise<{ rolesCount: number }>;
   registerUser: (formData: { email: string; phone: string; name: string; password: string }) => Promise<void>;
+  googleLogin: (idToken: string) => Promise<{ rolesCount: number }>;
+  googleRegister: (data: {
+    id_token: string;
+    phone?: string;
+    roles: string[];
+    company_name?: string;
+    gstin?: string;
+    fleet_size?: number;
+  }) => Promise<void>;
   verifyOTP: (emailOrPhone: string, code: string) => Promise<any>;
   sendOTP: (emailOrPhone: string) => Promise<void>;
   forgotPasswordRequest: (emailOrPhone: string) => Promise<void>;
@@ -162,6 +171,77 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  googleLogin: async (idToken) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await authService.googleLogin(idToken);
+      
+      // Save user data
+      localStorage.setItem('fuelflux_user', JSON.stringify(data.user));
+
+      // Set cookies for Next.js Middleware
+      setCookie('fuelflux_accessToken', data.accessToken, 7);
+      setCookie('fuelflux_refreshToken', data.refreshToken, 7);
+
+      const rolesCount = data.user.roles.length;
+
+      // If user has only 1 role → auto-select it, skip role selection page
+      if (rolesCount === 1) {
+        const autoRole = data.user.roles[0] as Role;
+        localStorage.setItem('fuelflux_activeRole', autoRole);
+        setCookie('fuelflux_activeRole', autoRole, 7);
+        set({
+          user: data.user,
+          activeRole: autoRole,
+          isAuthenticated: true,
+          permissions: getPermissionsForRole(autoRole),
+          isLoading: false,
+          error: null,
+        });
+      } else {
+        // Multi-role user → let them choose on /select-role
+        set({
+          user: data.user,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+      }
+
+      return { rolesCount };
+    } catch (err: any) {
+      const errorMsg = err.message || 'Google login failed. Please try again.';
+      set({ isLoading: false, error: errorMsg });
+      throw new Error(errorMsg);
+    }
+  },
+
+  googleRegister: async (registerData) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await authService.googleRegister(registerData);
+      
+      localStorage.setItem('fuelflux_user', JSON.stringify(data.user));
+      setCookie('fuelflux_accessToken', data.accessToken, 1);
+      setCookie('fuelflux_refreshToken', data.refreshToken, 1);
+
+      const initialRole = (data.user.roles[0] as Role) || 'employee';
+
+      set({
+        user: data.user,
+        activeRole: initialRole,
+        isAuthenticated: true,
+        permissions: getPermissionsForRole(initialRole),
+        isLoading: false,
+        error: null,
+      });
+    } catch (err: any) {
+      const errorMsg = err.message || 'Google registration failed. Please try again.';
+      set({ isLoading: false, error: errorMsg });
+      throw new Error(errorMsg);
+    }
+  },
+
   verifyOTP: async (emailOrPhone, code) => {
     set({ isLoading: true, error: null });
     try {
@@ -261,6 +341,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         localStorage.removeItem('fuelflux_user');
         localStorage.removeItem('fuelflux_activeRole');
         deleteCookie('fuelflux_activeRole');
+        deleteCookie('fuelflux_accessToken');
+        deleteCookie('fuelflux_refreshToken');
       }
 
       set({

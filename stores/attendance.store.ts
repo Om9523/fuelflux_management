@@ -1,14 +1,23 @@
-﻿import { create } from 'zustand';
-import { AttendanceRecord } from '@/lib/mock-db';
-import { attendanceService } from '@/services/attendance.service';
+﻿/**
+ * attendance.store.ts
+ * Separate store for attendance — used by AttendanceCard and attendance page.
+ * Real API via employeeService.
+ */
+
+import { create } from 'zustand';
+import { employeeService } from '@/services/employee.service';
+import { AttendanceRecord, AttendanceSummary, TodayAttendance } from '@/types/employee';
 
 interface AttendanceState {
   records: AttendanceRecord[];
-  todayRecord: AttendanceRecord | null;
+  todayRecord: TodayAttendance | null;
+  summary: AttendanceSummary | null;
   isLoading: boolean;
+  isChecking: boolean;   // check-in/out in progress
   error: string | null;
 
-  fetchAttendance: () => Promise<void>;
+  fetchAttendance: (month?: number, year?: number) => Promise<void>;
+  fetchTodayAttendance: () => Promise<void>;
   checkIn: () => Promise<void>;
   checkOut: () => Promise<void>;
   clearStore: () => void;
@@ -17,56 +26,61 @@ interface AttendanceState {
 export const useAttendanceStore = create<AttendanceState>((set) => ({
   records: [],
   todayRecord: null,
+  summary: null,
   isLoading: false,
+  isChecking: false,
   error: null,
 
-  fetchAttendance: async () => {
+  fetchAttendance: async (month, year) => {
     set({ isLoading: true, error: null });
     try {
-      const records = await attendanceService.getAttendanceLogs();
-      const today = new Date().toISOString().split('T')[0];
-      const todayRecord = records.find((r) => r.date === today) || null;
-      set({ records, todayRecord, isLoading: false });
+      const { summary, records } = await employeeService.getAttendance(month, year);
+      set({ summary, records, isLoading: false });
     } catch (err: any) {
-      set({ error: err.message || 'Failed to fetch attendance logs', isLoading: false });
+      set({ error: err.message || 'Failed to fetch attendance', isLoading: false });
+    }
+  },
+
+  fetchTodayAttendance: async () => {
+    try {
+      const todayRecord = await employeeService.getTodayAttendance();
+      set({ todayRecord });
+    } catch {
+      // silent — today record stays null (not checked in yet)
     }
   },
 
   checkIn: async () => {
-    set({ isLoading: true, error: null });
+    set({ isChecking: true, error: null });
     try {
-      const record = await attendanceService.checkIn();
-      set((state) => {
-        const updatedRecords = [record, ...state.records];
-        return {
-          records: updatedRecords,
-          todayRecord: record,
-          isLoading: false,
-        };
-      });
+      await employeeService.checkIn();
+      const todayRecord = await employeeService.getTodayAttendance();
+      set({ todayRecord, isChecking: false });
     } catch (err: any) {
-      set({ error: err.message || 'Failed to check in', isLoading: false });
+      set({ error: err.message || 'Check-in failed', isChecking: false });
       throw err;
     }
   },
 
   checkOut: async () => {
-    set({ isLoading: true, error: null });
+    set({ isChecking: true, error: null });
     try {
-      const record = await attendanceService.checkOut();
-      set((state) => {
-        const updatedRecords = state.records.map((r) => r.id === record.id ? record : r);
-        return {
-          records: updatedRecords,
-          todayRecord: record,
-          isLoading: false,
-        };
-      });
+      await employeeService.checkOut();
+      const todayRecord = await employeeService.getTodayAttendance();
+      set({ todayRecord, isChecking: false });
     } catch (err: any) {
-      set({ error: err.message || 'Failed to check out', isLoading: false });
+      set({ error: err.message || 'Check-out failed', isChecking: false });
       throw err;
     }
   },
 
-  clearStore: () => set({ records: [], todayRecord: null, error: null, isLoading: false }),
+  clearStore: () =>
+    set({
+      records: [],
+      todayRecord: null,
+      summary: null,
+      isLoading: false,
+      isChecking: false,
+      error: null,
+    }),
 }));

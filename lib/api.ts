@@ -879,7 +879,11 @@ api.interceptors.response.use(
       if (originalRequest.url === '/auth/refresh') {
         clearStoredTokens();
         if (typeof window !== 'undefined') {
-          window.location.href = '/login?expired=true';
+          // Employee routes pe redirect nahi karna
+          const isEmployeePage = window.location.pathname.startsWith('/employee');
+          if (!isEmployeePage) {
+            window.location.href = '/login?expired=true';
+          }
         }
         return Promise.reject(error);
       }
@@ -937,7 +941,11 @@ api.interceptors.response.use(
         } else {
           clearStoredTokens();
           if (typeof window !== 'undefined') {
-            window.location.href = '/login?expired=true';
+            // Employee routes pe redirect nahi karna — employee ka apna auth flow hai
+            const isEmployeePage = window.location.pathname.startsWith('/employee');
+            if (!isEmployeePage) {
+              window.location.href = '/login?expired=true';
+            }
           }
         }
         return Promise.reject(refreshErr);

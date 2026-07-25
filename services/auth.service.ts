@@ -217,7 +217,11 @@ class AuthService {
             // Refresh failed, clear tokens and redirect to login
             this.clearTokens();
             if (typeof window !== 'undefined') {
-              window.location.href = '/login';
+              // Employee pages ka apna auth flow hai — unhe redirect mat karo
+              const isEmployeePage = window.location.pathname.startsWith('/employee');
+              if (!isEmployeePage) {
+                window.location.href = '/login';
+              }
             }
             return Promise.reject(refreshError);
           }
@@ -429,6 +433,49 @@ class AuthService {
     } catch (error: any) {
       throw new Error(
         error.response?.data?.message || error.message || 'Password reset failed. Please try again.'
+      );
+    }
+  }
+
+  async googleLogin(idToken: string): Promise<AuthResponse['data']> {
+    try {
+      const response = await this.api.post<any>('/auth/google', { id_token: idToken });
+      
+      const { accessToken, refreshToken, user } = validateAndExtractAuthData(response.data);
+      this.setTokens(accessToken, refreshToken);
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('fuelflux_user', JSON.stringify(user));
+      }
+      return { accessToken, refreshToken, user };
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.message || error.message || 'Google login failed. Please try again.'
+      );
+    }
+  }
+
+  async googleRegister(data: {
+    id_token: string;
+    phone?: string;
+    roles: string[];
+    company_name?: string;
+    gstin?: string;
+    fleet_size?: number;
+  }): Promise<AuthResponse['data']> {
+    try {
+      const response = await this.api.post<any>('/auth/google-register', data);
+      
+      const { accessToken, refreshToken, user } = validateAndExtractAuthData(response.data);
+      this.setTokens(accessToken, refreshToken);
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('fuelflux_user', JSON.stringify(user));
+      }
+      return { accessToken, refreshToken, user };
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.message || error.message || 'Google registration failed. Please try again.'
       );
     }
   }
