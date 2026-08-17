@@ -51,6 +51,7 @@ export const Sidebar: React.FC = () => {
       href: '/dashboard/udhaar',
       icon: <UserRound className="h-5 w-5 shrink-0" />,
     },
+    { label: 'compliance', href: '/dashboard/compliance', icon: <Notebook className="h-5 w-5 shrink-0" /> },
     { label: 'Inventory', href: '/dashboard/inventory', icon: <Layers className="h-5 w-5 shrink-0" /> },
     { label: 'Accounting', href: '/dashboard/accounting', icon: <Landmark className="h-5 w-5 shrink-0" /> },
     { label: 'Subscription', href: '/dashboard/subscription', icon: <CreditCard className="h-5 w-5 shrink-0" /> },
